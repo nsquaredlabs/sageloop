@@ -124,29 +124,43 @@ export type Database = {
       projects: {
         Row: {
           created_at: string | null
+          created_by: string | null
           description: string | null
           id: number
           model_config: Json
           name: string
           updated_at: string | null
+          workbench_id: string | null
         }
         Insert: {
           created_at?: string | null
+          created_by?: string | null
           description?: string | null
           id?: never
           model_config: Json
           name: string
           updated_at?: string | null
+          workbench_id?: string | null
         }
         Update: {
           created_at?: string | null
+          created_by?: string | null
           description?: string | null
           id?: never
           model_config?: Json
           name?: string
           updated_at?: string | null
+          workbench_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "projects_workbench_id_fkey"
+            columns: ["workbench_id"]
+            isOneToOne: false
+            referencedRelation: "workbenches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ratings: {
         Row: {
@@ -214,6 +228,59 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_workbenches: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: string
+          user_id: string | null
+          workbench_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role?: string
+          user_id?: string | null
+          workbench_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: string
+          user_id?: string | null
+          workbench_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_workbenches_workbench_id_fkey"
+            columns: ["workbench_id"]
+            isOneToOne: false
+            referencedRelation: "workbenches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workbenches: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
     }
     Views: {

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
 
 interface RouteParams {
@@ -8,6 +8,16 @@ interface RouteParams {
 
 export async function POST(request: Request, { params }: RouteParams) {
   try {
+    const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const { outputId: outputIdString } = await params;
     const outputId = parseId(outputIdString);
     const body = await request.json();
@@ -21,8 +31,8 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
     }
 
-    // Check if output exists
-    const { data: output, error: outputError } = await supabaseAdmin
+    // Check if output exists (RLS ensures user has access)
+    const { data: output, error: outputError } = await supabase
       .from('outputs')
       .select('id')
       .eq('id', outputId)
@@ -36,7 +46,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     // Insert rating into database
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('ratings')
       .insert({
         output_id: outputId,
@@ -67,10 +77,20 @@ export async function POST(request: Request, { params }: RouteParams) {
 
 export async function GET(request: Request, { params }: RouteParams) {
   try {
+    const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const { outputId: outputIdString } = await params;
     const outputId = parseId(outputIdString);
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('ratings')
       .select('*')
       .eq('output_id', outputId)

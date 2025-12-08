@@ -1,4 +1,5 @@
-import { supabaseAdmin } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
+import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,10 +7,17 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Calendar, FileText } from 'lucide-react';
 
 export default async function ProjectsPage() {
-  // Fetch all projects from Supabase
-  const { data: projects, error } = await supabaseAdmin
+  const supabase = await createServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect('/login');
+  }
+
+  // Fetch all projects from Supabase (RLS automatically filters by user's workbenches)
+  const { data: projects, error } = await supabase
     .from('projects')
-    .select('*')
+    .select('*, workbenches(name)')
     .order('created_at', { ascending: false });
 
   if (error) {

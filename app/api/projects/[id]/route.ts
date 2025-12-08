@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
 
 interface RouteParams {
@@ -8,6 +8,16 @@ interface RouteParams {
 
 export async function PATCH(request: Request, { params }: RouteParams) {
   try {
+    const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const { id: projectIdString } = await params;
     const projectId = parseId(projectIdString);
     const body = await request.json();
@@ -22,8 +32,8 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       );
     }
 
-    // Update project
-    const { data: project, error } = await supabaseAdmin
+    // Update project (RLS ensures user has access)
+    const { data: project, error } = await supabase
       .from('projects')
       .update({
         name,

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Star } from 'lucide-react';
+import { Star } from 'lucide-react';
 import { AnalyzePatternsButton } from '@/components/analyze-patterns-button';
 
 interface OutputsPageProps {
@@ -65,17 +65,10 @@ export default async function OutputsPage({ params }: OutputsPageProps) {
   ).length || 0;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div>
       <div className="container mx-auto py-8">
         {/* Header */}
         <div className="mb-8">
-          <Button variant="ghost" asChild className="mb-4">
-            <Link href={`/projects/${id}`}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Project
-            </Link>
-          </Button>
-
           <div className="flex justify-between items-start">
             <div>
               <div className="flex items-center gap-3 mb-2">
@@ -83,7 +76,7 @@ export default async function OutputsPage({ params }: OutputsPageProps) {
                 <Badge variant="secondary">{modelConfig.model || 'gpt-4'}</Badge>
               </div>
               <p className="text-muted-foreground mt-2">
-                Review and rate AI outputs for <span className="font-medium">{project.name}</span>
+                Review and rate AI outputs
               </p>
               <div className="flex gap-4 mt-4 text-sm text-muted-foreground">
                 <div>
@@ -179,15 +172,9 @@ export default async function OutputsPage({ params }: OutputsPageProps) {
           <Card className="border-dashed">
             <CardContent className="flex flex-col items-center justify-center py-16">
               <h3 className="text-lg font-semibold mb-2">No outputs yet</h3>
-              <p className="text-sm text-muted-foreground mb-6 text-center max-w-md">
-                Generate outputs from the project page to see them here.
+              <p className="text-sm text-muted-foreground text-center max-w-md">
+                Generate outputs from the Overview tab to see them here.
               </p>
-              <Button asChild>
-                <Link href={`/projects/${id}`}>
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Back to Project
-                </Link>
-              </Button>
             </CardContent>
           </Card>
         )}

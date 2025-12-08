@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
 
 interface RouteParams {
@@ -8,6 +8,16 @@ interface RouteParams {
 
 export async function POST(request: Request, { params }: RouteParams) {
   try {
+    const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const { id: projectIdString } = await params;
     const projectId = parseId(projectIdString);
     const body = await request.json();
@@ -22,7 +32,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     // Get the current max order for this project
-    const { data: maxOrderData } = await supabaseAdmin
+    const { data: maxOrderData } = await supabase
       .from('scenarios')
       .select('order')
       .eq('project_id', projectId)
@@ -33,7 +43,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     const nextOrder = maxOrderData ? maxOrderData.order + 1 : 1;
 
     // Insert scenario into database
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('scenarios')
       .insert({
         project_id: projectId,
@@ -63,10 +73,20 @@ export async function POST(request: Request, { params }: RouteParams) {
 
 export async function GET(request: Request, { params }: RouteParams) {
   try {
+    const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const { id: projectIdString } = await params;
     const projectId = parseId(projectIdString);
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('scenarios')
       .select('*')
       .eq('project_id', projectId)

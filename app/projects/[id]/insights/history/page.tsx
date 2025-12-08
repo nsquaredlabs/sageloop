@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, History } from 'lucide-react';
+import { History } from 'lucide-react';
 import { interpretSuccessRate, interpretConfidence } from '@/lib/metrics';
 import { parseId } from '@/lib/utils';
 
@@ -43,22 +43,15 @@ export default async function ExtractionHistoryPage({ params }: HistoryPageProps
     .order('created_at', { ascending: false });
 
   return (
-    <div className="min-h-screen bg-background">
+    <div>
       <div className="container mx-auto py-8">
-        <Button variant="ghost" asChild className="mb-4">
-          <Link href={`/projects/${id}/insights`}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Latest Insights
-          </Link>
-        </Button>
-
         <div className="mb-8">
           <h1 className="text-4xl font-bold tracking-tight flex items-center gap-2">
             <History className="h-8 w-8" />
             Extraction History
           </h1>
           <p className="text-muted-foreground mt-2">
-            View how quality criteria evolved for <span className="font-medium">{project.name}</span>
+            View how quality criteria evolved over time
           </p>
         </div>
 

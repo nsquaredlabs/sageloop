@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
 
 interface RouteParams {
@@ -8,13 +8,23 @@ interface RouteParams {
 
 export async function GET(request: Request, { params }: RouteParams) {
   try {
+    const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const { id: projectIdString } = await params;
     const projectId = parseId(projectIdString);
     const { searchParams } = new URL(request.url);
     const format = searchParams.get('format') || 'json'; // 'json' or 'markdown'
 
-    // Fetch project details
-    const { data: project, error: projectError } = await supabaseAdmin
+    // Fetch project details (RLS ensures user has access)
+    const { data: project, error: projectError } = await supabase
       .from('projects')
       .select('*')
       .eq('id', projectId)
@@ -28,7 +38,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     }
 
     // Fetch latest extraction
-    const { data: extraction } = await supabaseAdmin
+    const { data: extraction } = await supabase
       .from('extractions')
       .select('*')
       .eq('project_id', projectId)
@@ -44,7 +54,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     }
 
     // First fetch all scenarios for this project
-    const { data: projectScenarios } = await supabaseAdmin
+    const { data: projectScenarios } = await supabase
       .from('scenarios')
       .select('id')
       .eq('project_id', projectId);
@@ -59,7 +69,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     }
 
     // Fetch golden examples (high-rated outputs)
-    const { data: goldenExamples } = await supabaseAdmin
+    const { data: goldenExamples } = await supabase
       .from('outputs')
       .select(`
         *,
@@ -77,7 +87,7 @@ export async function GET(request: Request, { params }: RouteParams) {
       .not('ratings', 'is', null);
 
     // Fetch negative examples (low-rated outputs)
-    const { data: negativeExamples } = await supabaseAdmin
+    const { data: negativeExamples } = await supabase
       .from('outputs')
       .select(`
         *,

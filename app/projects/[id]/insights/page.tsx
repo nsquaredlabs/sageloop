@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, TrendingUp, TrendingDown, Lightbulb, CheckCircle2, Download, FileJson, FileText, AlertCircle, Info, History } from 'lucide-react';
+import { TrendingUp, TrendingDown, Lightbulb, CheckCircle2, FileJson, FileText, AlertCircle, Info, History } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { interpretSuccessRate, interpretConfidence } from '@/lib/metrics';
 import { parseId } from '@/lib/utils';
@@ -72,14 +72,8 @@ export default async function InsightsPage({ params, searchParams }: InsightsPag
 
   if (!extraction) {
     return (
-      <div className="min-h-screen bg-background">
+      <div>
         <div className="container mx-auto py-8">
-          <Button variant="ghost" asChild className="mb-4">
-            <Link href={`/projects/${id}/outputs`}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Outputs
-            </Link>
-          </Button>
           <Card className="border-dashed">
             <CardContent className="flex flex-col items-center justify-center py-16">
               <Lightbulb className="h-12 w-12 text-muted-foreground mb-4" />
@@ -108,17 +102,10 @@ export default async function InsightsPage({ params, searchParams }: InsightsPag
   const confidenceInterpretation = interpretConfidence(confidenceScore, ratedCount || 0);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div>
       <div className="container mx-auto py-8">
         {/* Header */}
         <div className="mb-8">
-          <Button variant="ghost" asChild className="mb-4">
-            <Link href={`/projects/${id}/outputs`}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Outputs
-            </Link>
-          </Button>
-
           <div className="flex justify-between items-start">
             <div className="flex-1">
               <h1 className="text-4xl font-bold tracking-tight">Insights</h1>

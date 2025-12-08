@@ -109,3 +109,109 @@ const { count } = await supabase
 ```
 
 **Why this matters**: Supabase PostgREST doesn't support filtering on nested embedded resources. Always fetch parent IDs first, then use `.in()` to filter children.
+
+## Authentication & Authorization
+
+Tellah uses Supabase Auth with Row Level Security (RLS) for data protection.
+
+### Authentication Patterns
+
+**Client Components (Browser)**
+```typescript
+'use client';
+
+import { createClient } from '@/lib/supabase';
+
+export function MyComponent() {
+  const supabase = createClient();
+
+  // Use supabase client for queries
+  const { data } = await supabase.from('projects').select('*');
+}
+```
+
+**Server Components & API Routes**
+```typescript
+import { createServerClient } from '@/lib/supabase';
+import { redirect } from 'next/navigation';
+
+export async function MyPage() {
+  const supabase = await createServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect('/auth/login');
+  }
+
+  // RLS automatically filters data by user's workbenches
+  const { data: projects } = await supabase
+    .from('projects')
+    .select('*');
+}
+```
+
+**API Routes - ALWAYS check auth**
+```typescript
+import { NextResponse } from 'next/server';
+import { createServerClient } from '@/lib/supabase';
+
+export async function POST(request: Request) {
+  const supabase = await createServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Continue with authenticated logic
+  // RLS ensures user can only access their data
+}
+```
+
+### Row Level Security (RLS)
+
+**CRITICAL**: All user-facing queries MUST use authenticated clients, never `supabaseAdmin`.
+
+- `createClient()` - Browser client (client components)
+- `createServerClient()` - Server client with cookie handling (Server Components/API routes)
+- `supabaseAdmin` - **ONLY for system operations** (migrations, admin tasks)
+
+**How RLS Works**
+1. User signs up → Auto-creates personal workbench
+2. Projects belong to workbenches
+3. Users access projects through workbench membership
+4. RLS policies automatically filter all queries by user's workbenches
+
+**Example: Creating a Project**
+```typescript
+// Get user's first workbench
+const { data: userWorkbenches } = await supabase
+  .from('user_workbenches')
+  .select('workbench_id')
+  .limit(1)
+  .single();
+
+// Create project in user's workbench
+const { data: project } = await supabase
+  .from('projects')
+  .insert({
+    name: 'My Project',
+    model_config: { /* ... */ },
+    workbench_id: userWorkbenches.workbench_id,
+    created_by: user.id
+  })
+  .select()
+  .single();
+```
+
+**Data Relationships with RLS**
+```
+auth.users (Supabase managed)
+    ↓ many-to-many
+workbenches
+    ↓ one-to-many
+projects → scenarios → outputs → ratings
+projects → extractions → metrics
+```
+
+All child records inherit access from projects through RLS policies.

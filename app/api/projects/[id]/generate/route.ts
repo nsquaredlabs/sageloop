@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
 import OpenAI from 'openai';
 
@@ -13,11 +13,21 @@ interface RouteParams {
 
 export async function POST(request: Request, { params }: RouteParams) {
   try {
+    const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const { id: projectIdString } = await params;
     const projectId = parseId(projectIdString);
 
-    // Fetch project details
-    const { data: project, error: projectError } = await supabaseAdmin
+    // Fetch project details (RLS ensures user has access)
+    const { data: project, error: projectError } = await supabase
       .from('projects')
       .select('*')
       .eq('id', projectId)
@@ -31,7 +41,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     // Fetch all scenarios for this project
-    const { data: scenarios, error: scenariosError } = await supabaseAdmin
+    const { data: scenarios, error: scenariosError } = await supabase
       .from('scenarios')
       .select('*')
       .eq('project_id', projectId)
@@ -70,7 +80,7 @@ export async function POST(request: Request, { params }: RouteParams) {
         const outputText = completion.choices[0]?.message?.content || '';
 
         // Save output to database
-        const { data: output, error: outputError } = await supabaseAdmin
+        const { data: output, error: outputError } = await supabase
           .from('outputs')
           .insert({
             scenario_id: scenario.id,

@@ -1,12 +1,12 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Plus, Settings, Trash2, FileText, History, BarChart3 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { AddScenarioDialog } from '@/components/add-scenario-dialog';
+import { UploadScenariosDialog } from '@/components/upload-scenarios-dialog';
 import { GenerateOutputsButton } from '@/components/generate-outputs-button';
 import { EditProjectDialog } from '@/components/edit-project-dialog';
 
@@ -42,17 +42,10 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div>
       <div className="container mx-auto py-8">
         {/* Header */}
         <div className="mb-8">
-          <Button variant="ghost" asChild className="mb-4">
-            <Link href="/projects">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Projects
-            </Link>
-          </Button>
-
           <div className="flex justify-between items-start">
             <div>
               <div className="flex items-center gap-3 mb-2">
@@ -106,57 +99,6 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
           </Card>
         )}
 
-        {/* Quick Links */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <Link href={`/projects/${id}/outputs`}>
-            <Card className="hover:border-primary transition-colors cursor-pointer">
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-primary" />
-                  <CardTitle className="text-lg">Outputs</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  View and rate AI-generated outputs
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href={`/projects/${id}/insights`}>
-            <Card className="hover:border-primary transition-colors cursor-pointer">
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5 text-primary" />
-                  <CardTitle className="text-lg">Insights</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Latest quality patterns and criteria
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href={`/projects/${id}/insights/history`}>
-            <Card className="hover:border-primary transition-colors cursor-pointer">
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <History className="h-5 w-5 text-primary" />
-                  <CardTitle className="text-lg">History</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Track how criteria evolved over time
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-        </div>
-
         {/* Scenarios Section */}
         <div className="mb-6">
           <div className="flex justify-between items-center mb-4">
@@ -166,7 +108,10 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
                 {scenarios?.length || 0} test scenario{scenarios?.length !== 1 ? 's' : ''}
               </p>
             </div>
-            <AddScenarioDialog projectId={String(id)} />
+            <div className="flex gap-2">
+              <UploadScenariosDialog projectId={String(id)} />
+              <AddScenarioDialog projectId={String(id)} />
+            </div>
           </div>
 
           {scenarios && scenarios.length > 0 ? (

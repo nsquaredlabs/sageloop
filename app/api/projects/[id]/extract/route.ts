@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
 import OpenAI from 'openai';
 
@@ -13,11 +13,21 @@ interface RouteParams {
 
 export async function POST(request: Request, { params }: RouteParams) {
   try {
+    const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const { id: projectIdString } = await params;
     const projectId = parseId(projectIdString);
 
-    // Fetch project details
-    const { data: project, error: projectError } = await supabaseAdmin
+    // Fetch project details (RLS ensures user has access)
+    const { data: project, error: projectError } = await supabase
       .from('projects')
       .select('*')
       .eq('id', projectId)
@@ -35,7 +45,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     const systemPrompt = modelConfig.system_prompt || '';
 
     // Get the last extraction timestamp to determine which ratings are new
-    const { data: lastExtraction } = await supabaseAdmin
+    const { data: lastExtraction } = await supabase
       .from('extractions')
       .select('created_at')
       .eq('project_id', projectId)
@@ -47,7 +57,7 @@ export async function POST(request: Request, { params }: RouteParams) {
 
     // Fetch outputs with ratings created AFTER the last extraction
     // This ensures each extraction analyzes only the current iteration's ratings
-    const { data: outputs, error: outputsError } = await supabaseAdmin
+    const { data: outputs, error: outputsError } = await supabase
       .from('outputs')
       .select(`
         *,
@@ -155,7 +165,7 @@ Return your analysis as a JSON object with this structure:
     const confidenceScore = Math.min(0.9, ratedOutputs.length / 20);
 
     // Save extraction to database with snapshots
-    const { data: extraction, error: extractionError } = await supabaseAdmin
+    const { data: extraction, error: extractionError } = await supabase
       .from('extractions')
       .insert({
         project_id: projectId,
@@ -186,7 +196,7 @@ Return your analysis as a JSON object with this structure:
       return acc;
     }, {});
 
-    const { data: metric, error: metricError } = await supabaseAdmin
+    const { data: metric, error: metricError } = await supabase
       .from('metrics')
       .insert({
         project_id: projectId,

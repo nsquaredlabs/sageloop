@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
 
 interface RouteParams {
@@ -8,11 +8,21 @@ interface RouteParams {
 
 export async function GET(request: Request, { params }: RouteParams) {
   try {
+    const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const { id: projectIdString } = await params;
     const projectId = parseId(projectIdString);
 
-    // Fetch all extractions with their metrics
-    const { data: extractions, error } = await supabaseAdmin
+    // Fetch all extractions with their metrics (RLS ensures user has access)
+    const { data: extractions, error } = await supabase
       .from('extractions')
       .select(`
         id,
@@ -36,7 +46,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     }
 
     // Get scenario count for the project (constant across extractions)
-    const { data: scenarios } = await supabaseAdmin
+    const { data: scenarios } = await supabase
       .from('scenarios')
       .select('id')
       .eq('project_id', projectId);

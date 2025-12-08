@@ -1,13 +1,29 @@
 -- Seed data for Tellah
 -- Sample project with scenarios, outputs, ratings, and extractions for testing
+-- Note: This seed data requires a test user to be created first via Supabase Studio or signup
 
--- Insert sample project
-insert into projects (name, description, model_config)
+-- Create test workbench (using a known UUID for consistency)
+insert into workbenches (id, name)
+values ('00000000-0000-0000-0000-000000000001'::uuid, 'Demo Workbench')
+on conflict (id) do nothing;
+
+-- Note: You need to create a test user and link them to the workbench manually:
+-- 1. Sign up via the app at /auth/signup (auto-creates workbench)
+-- OR
+-- 2. Create user in Supabase Studio, then run:
+--    insert into user_workbenches (user_id, workbench_id, role)
+--    values ('<your-user-id>', '00000000-0000-0000-0000-000000000001', 'owner');
+
+-- Insert sample project (requires workbench_id now)
+insert into projects (name, description, model_config, workbench_id, created_by)
 values (
   'Customer Support Assistant',
   'Evaluating tone and helpfulness of support responses',
-  '{"model": "gpt-4", "temperature": 0.7, "system_prompt": "You are a helpful customer support assistant. Be concise, professional, and empathetic."}'::jsonb
-);
+  '{"model": "gpt-4", "temperature": 0.7, "system_prompt": "You are a helpful customer support assistant. Be concise, professional, and empathetic."}'::jsonb,
+  '00000000-0000-0000-0000-000000000001'::uuid,
+  null -- created_by can be null for seed data
+)
+on conflict do nothing;
 
 -- Insert sample scenarios
 insert into scenarios (project_id, input_text, "order")
