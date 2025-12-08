@@ -17,5 +17,7 @@ port = 54323
 
 [auth]
 enabled = true
-# We'll configure this when we add auth
+# Local development
 site_url = "http://localhost:3000"
+# Production: Update in Supabase dashboard to your Vercel URL
+# https://app.supabase.com → Authentication → URL Configuration
