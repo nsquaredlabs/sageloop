@@ -11,9 +11,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { User, LogOut } from 'lucide-react';
+import { User, LogOut, Settings } from 'lucide-react';
 
-export function UserMenu({ email }: { email: string }) {
+export function UserMenu({ email, workbenchId }: { email: string; workbenchId?: string }) {
   const router = useRouter();
 
   const handleSignOut = async () => {
@@ -33,6 +33,15 @@ export function UserMenu({ email }: { email: string }) {
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>{email}</DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {workbenchId && (
+          <>
+            <DropdownMenuItem onClick={() => router.push(`/workbench/${workbenchId}/settings`)}>
+              <Settings className="mr-2 h-4 w-4" />
+              Settings
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuItem onClick={handleSignOut}>
           <LogOut className="mr-2 h-4 w-4" />
           Sign out

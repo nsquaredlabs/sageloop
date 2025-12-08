@@ -264,18 +264,21 @@ export type Database = {
       workbenches: {
         Row: {
           created_at: string | null
+          encrypted_api_keys: string | null
           id: string
           name: string
           updated_at: string | null
         }
         Insert: {
           created_at?: string | null
+          encrypted_api_keys?: string | null
           id?: string
           name: string
           updated_at?: string | null
         }
         Update: {
           created_at?: string | null
+          encrypted_api_keys?: string | null
           id?: string
           name?: string
           updated_at?: string | null
@@ -287,7 +290,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      check_workbench_api_keys: {
+        Args: { workbench_uuid: string }
+        Returns: Json
+      }
+      get_workbench_api_keys: {
+        Args: { workbench_uuid: string }
+        Returns: Json
+      }
+      set_workbench_api_keys: {
+        Args: { api_keys_json: Json; workbench_uuid: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

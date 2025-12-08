@@ -17,6 +17,18 @@ export default async function RootLayout({
   const supabase = await createServerClient();
   const { data: { user } } = await supabase.auth.getUser();
 
+  // Fetch user's workbench for settings link
+  let workbenchId: string | undefined;
+  if (user) {
+    const { data: userWorkbenches } = await supabase
+      .from('user_workbenches')
+      .select('workbench_id')
+      .limit(1)
+      .single();
+
+    workbenchId = userWorkbenches?.workbench_id ?? undefined;
+  }
+
   return (
     <html lang="en">
       <body suppressHydrationWarning>
@@ -26,7 +38,7 @@ export default async function RootLayout({
               <Link href="/projects" className="hover:opacity-80 transition-opacity">
                 <h1 className="text-3xl font-bold tracking-tight">Tellah</h1>
               </Link>
-              <UserMenu email={user.email!} />
+              <UserMenu email={user.email!} workbenchId={workbenchId} />
             </div>
           </nav>
         )}
