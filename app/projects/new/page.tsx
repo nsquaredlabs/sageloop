@@ -33,5 +33,5 @@ export default async function NewProjectPage() {
     };
   }
 
-  return <NewProjectForm configured={configured} workbenchId={workbenchId} />;
+  return <NewProjectForm configured={configured} workbenchId={workbenchId ?? undefined} />;
 }
