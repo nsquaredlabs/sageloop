@@ -338,8 +338,11 @@ export function ApiKeyForm({ workbenchId, initialConfigured }: ApiKeyFormProps) 
               {deleteDialog === 'openai' ? 'OpenAI' : 'Anthropic'} API key?
               <br />
               <br />
-              <strong>Your projects will automatically fall back to the free tier model (GPT-3.5 Turbo)</strong>{' '}
-              until you add a new API key. You won't be able to generate outputs with premium models like GPT-4 or Claude.
+              <strong>
+                Any projects configured to use {deleteDialog === 'openai' ? 'OpenAI models (GPT-4, GPT-3.5, etc.)' : 'Claude models'}
+                {' '}will automatically fall back to the free tier model (GPT-3.5 Turbo)
+              </strong>{' '}
+              when generating outputs.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
