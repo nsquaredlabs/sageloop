@@ -115,7 +115,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     const filteredNegative = (negativeExamples || [])
       .filter((ex: any) => ex.ratings && ex.ratings.length > 0 && ex.ratings[0].stars <= 2)
       .sort((a: any, b: any) => a.ratings[0].stars - b.ratings[0].stars)
-      .slice(0, 5);
+      .slice(0, 10); // Get more negative examples for analysis
 
     if (format === 'markdown') {
       // Generate Markdown documentation
@@ -177,13 +177,6 @@ function generateTestSuite(
       temperature: modelConfig.temperature,
       system_prompt: modelConfig.system_prompt,
     },
-    quality_criteria: criteria.criteria?.map((c: any) => ({
-      dimension: c.dimension,
-      pattern: c.pattern,
-      importance: c.importance,
-      good_characteristics: c.good_example,
-      bad_characteristics: c.bad_example,
-    })) || [],
     golden_examples: goldenExamples
       .filter((ex: any) => ex.ratings && ex.ratings.length > 0)
       .map((example: any) => ({
@@ -195,20 +188,36 @@ function generateTestSuite(
       })),
     negative_examples: negativeExamples
       .filter((ex: any) => ex.ratings && ex.ratings.length > 0)
-      .map((example: any) => ({
-        input: example.scenario.input_text,
-        output: example.output_text,
-        rating: example.ratings[0].stars,
-        why_failed: example.ratings[0].feedback_text,
-      })),
-    test_cases: goldenExamples
-      .filter((ex: any) => ex.ratings && ex.ratings.length > 0)
-      .map((example: any) => ({
-        name: `Test: ${example.scenario.input_text.substring(0, 50)}...`,
-        input: example.scenario.input_text,
-        expected_criteria: criteria.criteria?.map((c: any) => c.dimension) || [],
-        min_quality_score: 4,
-      })),
+      .map((example: any) => {
+        // Try to match this failure to a cluster for suggested fix
+        let suggestedFix = null;
+        let clusterName = null;
+
+        if (criteria.failure_analysis?.clusters) {
+          // Find cluster that includes this input
+          const matchingCluster = criteria.failure_analysis.clusters.find((cluster: any) =>
+            cluster.example_inputs?.some((input: string) =>
+              input === example.scenario.input_text ||
+              input.includes(example.scenario.input_text.substring(0, 30))
+            )
+          );
+
+          if (matchingCluster) {
+            suggestedFix = matchingCluster.suggested_fix;
+            clusterName = matchingCluster.name;
+          }
+        }
+
+        return {
+          input: example.scenario.input_text,
+          output: example.output_text,
+          rating: example.ratings[0].stars,
+          why_failed: example.ratings[0].feedback_text,
+          suggested_fix: suggestedFix,
+          failure_cluster: clusterName,
+        };
+      }),
+    failure_analysis: criteria.failure_analysis || null,
   };
 }
 
@@ -247,27 +256,32 @@ function generateMarkdownDoc(
     lines.push('');
   }
 
-  if (criteria.summary) {
-    lines.push(`## Quality Summary`);
+  // Failure Analysis Section (replaces generic quality criteria)
+  if (criteria.failure_analysis && criteria.failure_analysis.clusters && criteria.failure_analysis.clusters.length > 0) {
+    lines.push(`## Failure Analysis`);
     lines.push('');
-    lines.push(criteria.summary);
+    lines.push(`**Total Failures**: ${criteria.failure_analysis.total_failures} outputs rated ≤2 stars`);
     lines.push('');
-  }
 
-  if (criteria.criteria && criteria.criteria.length > 0) {
-    lines.push(`## Quality Criteria`);
-    lines.push('');
-    criteria.criteria.forEach((criterion: any, index: number) => {
-      lines.push(`### ${index + 1}. ${criterion.dimension} ${criterion.importance === 'high' ? '⭐' : ''}`);
+    criteria.failure_analysis.clusters.forEach((cluster: any, index: number) => {
+      lines.push(`### ${index + 1}. ${cluster.name} (${cluster.count} outputs)`);
       lines.push('');
-      lines.push(`**Pattern**: ${criterion.pattern}`);
+      lines.push(`**Pattern**: ${cluster.pattern}`);
       lines.push('');
-      lines.push(`**Good Outputs**:`);
-      lines.push(`- ${criterion.good_example}`);
+      lines.push(`**Root Cause**: ${cluster.root_cause}`);
       lines.push('');
-      lines.push(`**Poor Outputs**:`);
-      lines.push(`- ${criterion.bad_example}`);
+      lines.push(`**Suggested Fix**:`);
+      lines.push('```');
+      lines.push(cluster.suggested_fix);
+      lines.push('```');
       lines.push('');
+      if (cluster.example_inputs && cluster.example_inputs.length > 0) {
+        lines.push(`**Example Inputs That Failed**:`);
+        cluster.example_inputs.slice(0, 2).forEach((input: string) => {
+          lines.push(`- "${input}"`);
+        });
+        lines.push('');
+      }
     });
   }
 
@@ -311,10 +325,22 @@ function generateMarkdownDoc(
 
     negativeExamples
       .filter((ex: any) => ex.ratings && ex.ratings.length > 0)
-      .slice(0, 3)
+      .slice(0, 5)
       .forEach((example: any, index: number) => {
         const rating = example.ratings[0];
-        lines.push(`### Anti-Pattern ${index + 1}`);
+
+        // Find matching cluster for this example
+        let matchingCluster = null;
+        if (criteria.failure_analysis?.clusters) {
+          matchingCluster = criteria.failure_analysis.clusters.find((cluster: any) =>
+            cluster.example_inputs?.some((input: string) =>
+              input === example.scenario.input_text ||
+              input.includes(example.scenario.input_text.substring(0, 30))
+            )
+          );
+        }
+
+        lines.push(`### Anti-Pattern ${index + 1}${matchingCluster ? ` - ${matchingCluster.name}` : ''}`);
         lines.push('');
         lines.push(`**Input**:`);
         lines.push(`> ${example.scenario.input_text}`);
@@ -328,16 +354,14 @@ function generateMarkdownDoc(
           lines.push(`**Why This Failed**: ${rating.feedback_text}`);
           lines.push('');
         }
+        if (matchingCluster?.suggested_fix) {
+          lines.push(`**Suggested Fix**:`);
+          lines.push('```');
+          lines.push(matchingCluster.suggested_fix);
+          lines.push('```');
+          lines.push('');
+        }
       });
-  }
-
-  if (criteria.recommendations && criteria.recommendations.length > 0) {
-    lines.push(`## Implementation Recommendations`);
-    lines.push('');
-    criteria.recommendations.forEach((rec: string, index: number) => {
-      lines.push(`${index + 1}. ${rec}`);
-    });
-    lines.push('');
   }
 
   lines.push(`---`);

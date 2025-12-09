@@ -129,6 +129,7 @@ export type Database = {
           id: number
           model_config: Json
           name: string
+          prompt_version: number | null
           updated_at: string | null
           workbench_id: string | null
         }
@@ -139,6 +140,7 @@ export type Database = {
           id?: never
           model_config: Json
           name: string
+          prompt_version?: number | null
           updated_at?: string | null
           workbench_id?: string | null
         }
@@ -149,6 +151,7 @@ export type Database = {
           id?: never
           model_config?: Json
           name?: string
+          prompt_version?: number | null
           updated_at?: string | null
           workbench_id?: string | null
         }
@@ -162,9 +165,54 @@ export type Database = {
           },
         ]
       }
+      prompt_iterations: {
+        Row: {
+          created_at: string | null
+          id: number
+          improvement_note: string | null
+          parent_version: number | null
+          project_id: number | null
+          success_rate_after: number | null
+          success_rate_before: number | null
+          system_prompt: string
+          version: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: never
+          improvement_note?: string | null
+          parent_version?: number | null
+          project_id?: number | null
+          success_rate_after?: number | null
+          success_rate_before?: number | null
+          system_prompt: string
+          version: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: never
+          improvement_note?: string | null
+          parent_version?: number | null
+          project_id?: number | null
+          success_rate_after?: number | null
+          success_rate_before?: number | null
+          system_prompt?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prompt_iterations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ratings: {
         Row: {
           created_at: string | null
+          extraction_version: number | null
           feedback_text: string | null
           id: number
           output_id: number | null
@@ -173,6 +221,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          extraction_version?: number | null
           feedback_text?: string | null
           id?: never
           output_id?: number | null
@@ -181,6 +230,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          extraction_version?: number | null
           feedback_text?: string | null
           id?: never
           output_id?: number | null

@@ -44,19 +44,11 @@ export async function POST(request: Request, { params }: RouteParams) {
     const modelConfig = project.model_config as { system_prompt?: string };
     const systemPrompt = modelConfig.system_prompt || '';
 
-    // Get the last extraction timestamp to determine which ratings are new
-    const { data: lastExtraction } = await supabase
-      .from('extractions')
-      .select('created_at')
-      .eq('project_id', projectId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+    // Get the current prompt version
+    const currentVersion = project.prompt_version || 1;
 
-    const lastExtractionTime = lastExtraction?.created_at || '1970-01-01T00:00:00Z';
-
-    // Fetch outputs with ratings created AFTER the last extraction
-    // This ensures each extraction analyzes only the current iteration's ratings
+    // Fetch ALL rated outputs for the current prompt version
+    // This ensures we analyze the complete picture of the current prompt's performance
     const { data: outputs, error: outputsError } = await supabase
       .from('outputs')
       .select(`
@@ -74,7 +66,7 @@ export async function POST(request: Request, { params }: RouteParams) {
         )
       `)
       .eq('scenario.project_id', projectId)
-      .gt('ratings.created_at', lastExtractionTime);
+      .eq('model_snapshot->>version', currentVersion.toString());
 
     if (outputsError) {
       console.error('Error fetching outputs:', outputsError);
@@ -90,20 +82,17 @@ export async function POST(request: Request, { params }: RouteParams) {
     );
 
     if (ratedOutputs.length === 0) {
-      const errorMessage = lastExtraction
-        ? 'No new ratings found since the last extraction. Please rate some outputs before running another analysis.'
-        : 'No rated outputs found. Please rate at least a few outputs before analyzing patterns.';
-
       return NextResponse.json(
-        { error: errorMessage },
+        { error: 'No rated outputs found for the current prompt version. Please rate some outputs before analyzing patterns.' },
         { status: 400 }
       );
     }
 
-    // Prepare data for AI analysis
+    // Prepare data for AI analysis with scenario IDs
     const analysisData = ratedOutputs.map((output: any) => {
       const rating = output.ratings[0];
       return {
+        scenario_id: output.scenario.id,
         input: output.scenario.input_text,
         output: output.output_text,
         stars: rating.stars,
@@ -112,48 +101,68 @@ export async function POST(request: Request, { params }: RouteParams) {
       };
     });
 
-    // Call OpenAI to analyze patterns
+    // Prepare failure data for clustering analysis
+    const failures = analysisData.filter((d: any) => d.stars <= 2);
+    const successes = analysisData.filter((d: any) => d.stars >= 4);
+
+    // Call OpenAI to analyze patterns with focus on failure clustering
     const completion = await openai.chat.completions.create({
       model: 'gpt-4-turbo',
       temperature: 0.3,
       messages: [
         {
           role: 'system',
-          content: `You are an expert at analyzing AI output quality patterns. You will be given a set of rated AI outputs from the most recent iteration.
+          content: `You are an expert at analyzing AI output quality patterns and diagnosing failures.
 
-${lastExtraction ? `NOTE: This is an incremental analysis. You are analyzing only the NEW ratings since the last extraction, not all historical ratings. Focus on patterns from this specific set of ${ratedOutputs.length} outputs.` : `This is the first extraction for this project.`}
+NOTE: You are analyzing ALL ${ratedOutputs.length} rated outputs for the current prompt version. This gives you a complete picture of the prompt's overall performance.
 
-Your task is to identify patterns that distinguish good outputs (4-5 stars) from poor outputs (1-3 stars). Focus on:
-1. Length patterns (word count, detail level)
-2. Tone patterns (formal/casual, empathetic/clinical)
-3. Structure patterns (format, organization, use of lists/paragraphs)
-4. Content patterns (specificity, examples, actionability)
+CRITICAL: Your primary job is FAILURE ANALYSIS - identifying concrete, fixable problems:
 
-Provide actionable criteria that can be used to evaluate future outputs. Your summary should accurately reflect the number of outputs you're analyzing.
+1. **Cluster Similar Failures**: Group outputs that failed for the SAME underlying reason
+2. **Root Cause Analysis**: For each cluster, identify WHY it failed (missing context, wrong format, hallucination, etc.)
+3. **Concrete Fixes**: Provide specific, copy-pasteable fixes to the system prompt
+4. **Example Inputs**: Show which inputs triggered each failure pattern
+
+Secondary: Note what makes successful outputs work well.
 
 Return your analysis as a JSON object with this structure:
 {
-  "summary": "Brief overview of quality patterns identified",
-  "criteria": [
-    {
-      "dimension": "Length/Tone/Structure/Content",
-      "pattern": "Description of the pattern",
-      "good_example": "Characteristic of high-rated outputs",
-      "bad_example": "Characteristic of low-rated outputs",
-      "importance": "high/medium/low"
-    }
-  ],
-  "key_insights": [
-    "Specific insight about what makes outputs good/bad"
-  ],
-  "recommendations": [
-    "Actionable recommendation for improving outputs"
+  "summary": "Brief overview focusing on main failure patterns and fixes",
+  "failure_analysis": {
+    "total_failures": ${failures.length},
+    "total_successes": ${successes.length},
+    "clusters": [
+      {
+        "name": "short_descriptive_name",
+        "count": 3,
+        "pattern": "Clear description of what went wrong",
+        "root_cause": "Why this failure occurred (missing context, bad instruction, etc.)",
+        "suggested_fix": "Concrete fix to add/modify in system prompt. Be specific - show exact text to add.",
+        "example_inputs": ["First input that failed this way", "Second input..."],
+        "scenario_ids": [1, 2, 3],
+        "severity": "high/medium/low"
+      }
+    ]
+  },
+  "success_patterns": [
+    "What made highly-rated outputs work well (be specific, not generic)"
   ]
-}`
+}
+
+IMPORTANT: For each cluster, include the scenario_ids array with the IDs of all inputs that belong to this failure cluster. Look at the scenario_id field in the data.`
         },
         {
           role: 'user',
-          content: `Analyze these ${ratedOutputs.length} rated outputs:\n\n${JSON.stringify(analysisData, null, 2)}`
+          content: `System prompt being tested:
+"""
+${systemPrompt}
+"""
+
+Analyze these ${ratedOutputs.length} rated outputs (${failures.length} failures, ${successes.length} successes):
+
+${JSON.stringify(analysisData, null, 2)}
+
+Focus on clustering failures and providing concrete fixes.`
         }
       ],
       response_format: { type: 'json_object' }
