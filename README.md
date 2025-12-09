@@ -1,6 +1,6 @@
 # Tellah
 
-**Figma for AI Evals** - A behavioral design tool for AI products
+**AI Evals for PMs** - A behavioral design tool for AI products
 
 ## Overview
 

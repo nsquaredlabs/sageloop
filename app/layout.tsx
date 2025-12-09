@@ -5,7 +5,7 @@ import { UserMenu } from '@/components/auth/user-menu';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: "Tellah - Figma for AI Evals",
+  title: "Tellah - AI Evals for PMs",
   description: "Behavioral design tool for AI products",
 };
 

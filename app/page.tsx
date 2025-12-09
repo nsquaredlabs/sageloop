@@ -8,7 +8,7 @@ export default function Home() {
           Tellah
         </h1>
         <p className="text-2xl text-gray-600 dark:text-gray-400 mb-2">
-          Figma for AI Evals
+          AI Evals for Product Managers
         </p>
         <p className="mt-2 text-gray-500 dark:text-gray-500 mb-8">
           Behavioral design tool for AI products
