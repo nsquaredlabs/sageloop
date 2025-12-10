@@ -6,7 +6,7 @@
 
 Tellah enables Product Managers to define what "good" AI behavior looks like through examples and ratings, rather than code. It creates a shared artifact between PMs and engineers for AI product quality.
 
-**The Problem:** For AI products, there's no equivalent to Figma mockups that define acceptable behavior for probabilistic outputs. PMs write vague requirements, engineers write prompts, and no one can agree on what "right" looks like.
+**The Problem:** For AI products, there's no equivalent to Figma mockups that define acceptable behavior for probabilistic outputs. PMs write vague requirements, engineers write prompts, and no one can agree on what "right" looks like. We solve this.
 
 **Our Solution:** PM taste → Behavioral spec → Test suite
 
