@@ -25,6 +25,7 @@ export function AnalyzePatternsButton({ projectId, ratedCount }: AnalyzePatterns
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
       });
 
       if (!response.ok) {

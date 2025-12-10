@@ -77,6 +77,7 @@ export function NewProjectForm({}: NewProjectFormProps) {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           name: formData.name,
           description: formData.description,

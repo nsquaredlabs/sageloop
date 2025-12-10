@@ -84,6 +84,7 @@ export function UploadScenariosDialog({ projectId }: UploadScenariosDialogProps)
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           scenarios: scenarioList.map(input_text => ({ input_text })),
         }),

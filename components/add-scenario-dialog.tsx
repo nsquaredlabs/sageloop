@@ -38,6 +38,7 @@ export function AddScenarioDialog({ projectId }: AddScenarioDialogProps) {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           input_text: inputText,
         }),

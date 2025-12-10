@@ -25,6 +25,7 @@ export function GenerateOutputsButton({ projectId, scenarioCount }: GenerateOutp
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
       });
 
       if (!response.ok) {
