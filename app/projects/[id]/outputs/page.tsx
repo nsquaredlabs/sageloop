@@ -39,25 +39,33 @@ export default async function OutputsPage({ params, searchParams }: OutputsPageP
   }
 
   // Fetch scenarios with their outputs and ratings
+  // Note: Supabase doesn't support ordering nested relations in the select query
+  // We need to fetch scenarios and then get outputs separately with proper ordering
   const { data: scenarios } = await supabase
     .from('scenarios')
-    .select(`
-      *,
-      outputs (
-        id,
-        output_text,
-        generated_at,
-        ratings (
-          id,
-          stars,
-          feedback_text,
-          created_at,
-          metadata
-        )
-      )
-    `)
+    .select('*')
     .eq('project_id', id)
     .order('order', { ascending: true });
+
+  // Fetch all outputs for these scenarios, ordered by generated_at DESC
+  const scenarioIds = scenarios?.map(s => s.id) || [];
+  const { data: outputs } = await supabase
+    .from('outputs')
+    .select(`
+      id,
+      scenario_id,
+      output_text,
+      generated_at,
+      ratings (
+        id,
+        stars,
+        feedback_text,
+        created_at,
+        metadata
+      )
+    `)
+    .in('scenario_id', scenarioIds)
+    .order('generated_at', { ascending: false });
 
   const modelConfig = project.model_config as {
     model?: string;
@@ -66,10 +74,17 @@ export default async function OutputsPage({ params, searchParams }: OutputsPageP
   };
 
   // Get the most recent output for each scenario
-  const scenariosWithLatestOutput = scenarios?.map((scenario: any) => ({
-    ...scenario,
-    latestOutput: scenario.outputs?.[scenario.outputs.length - 1] || null,
-  }));
+  const scenariosWithLatestOutput = scenarios?.map((scenario: any) => {
+    // Find all outputs for this scenario (already ordered by generated_at DESC)
+    const scenarioOutputs = outputs?.filter(o => o.scenario_id === scenario.id) || [];
+    // First output is the most recent (due to DESC ordering)
+    const latestOutput = scenarioOutputs.length > 0 ? scenarioOutputs[0] : null;
+
+    return {
+      ...scenario,
+      latestOutput,
+    };
+  });
 
   const totalOutputs = scenariosWithLatestOutput?.filter(s => s.latestOutput).length || 0;
   const ratedOutputs = scenariosWithLatestOutput?.filter(
