@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
@@ -17,8 +17,11 @@ export default async function RateOutputPage({ params }: RateOutputPageProps) {
   const projectId = parseId(projectIdString);
   const outputId = parseId(outputIdString);
 
+  // Use authenticated server client - enforces RLS
+  const supabase = await createServerClient();
+
   // Fetch output with scenario and project info
-  const { data: output, error: outputError } = await supabaseAdmin
+  const { data: output, error: outputError } = await supabase
     .from('outputs')
     .select(`
       *,

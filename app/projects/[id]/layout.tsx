@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
 import { notFound } from 'next/navigation';
 import { ProjectNav } from '@/components/project-nav';
@@ -12,8 +12,11 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
   const { id: idString } = await params;
   const id = parseId(idString);
 
+  // Use authenticated server client - enforces RLS
+  const supabase = await createServerClient();
+
   // Fetch project name for navigation
-  const { data: project, error } = await supabaseAdmin
+  const { data: project, error } = await supabase
     .from('projects')
     .select('id, name')
     .eq('id', id)

@@ -1,13 +1,14 @@
-import { supabaseAdmin } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { TrendingUp, TrendingDown, Lightbulb, CheckCircle2, FileJson, FileText, AlertCircle, Info, History } from 'lucide-react';
+import { TrendingUp, TrendingDown, Lightbulb, CheckCircle2, FileJson, FileText, AlertCircle, Info, History, Bug } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { interpretSuccessRate, interpretConfidence } from '@/lib/metrics';
 import { parseId } from '@/lib/utils';
+import { ApplyFixButton } from '@/components/apply-fix-button';
 
 interface InsightsPageProps {
   params: Promise<{ id: string }>;
@@ -22,8 +23,11 @@ export default async function InsightsPage({ params, searchParams }: InsightsPag
   const queryParams = searchParams ? await searchParams : {};
   const extractionId = queryParams.extractionId ? parseId(queryParams.extractionId) : null;
 
+  // Use authenticated server client - enforces RLS
+  const supabase = await createServerClient();
+
   // Fetch project details
-  const { data: project, error: projectError } = await supabaseAdmin
+  const { data: project, error: projectError } = await supabase
     .from('projects')
     .select('*')
     .eq('id', id)
@@ -34,7 +38,7 @@ export default async function InsightsPage({ params, searchParams }: InsightsPag
   }
 
   // Fetch extraction (specific one if extractionId provided, otherwise latest)
-  const extractionQuery = supabaseAdmin
+  const extractionQuery = supabase
     .from('extractions')
     .select('*, system_prompt_snapshot');
 
@@ -50,7 +54,7 @@ export default async function InsightsPage({ params, searchParams }: InsightsPag
   const { data: extraction } = await extractionQuery.single();
 
   // Fetch metric (for the specific extraction if provided, otherwise latest)
-  const metricQuery = supabaseAdmin
+  const metricQuery = supabase
     .from('metrics')
     .select('*');
 
@@ -69,6 +73,12 @@ export default async function InsightsPage({ params, searchParams }: InsightsPag
   // This ensures historical extractions show the correct confidence based on
   // the number of ratings that existed at extraction time, not current ratings
   const ratedCount = extraction?.rated_output_count || 0;
+
+  // Fetch total scenario count for the project
+  const { count: totalScenarios } = await supabase
+    .from('scenarios')
+    .select('*', { count: 'exact', head: true })
+    .eq('project_id', id);
 
   if (!extraction) {
     return (
@@ -199,6 +209,70 @@ export default async function InsightsPage({ params, searchParams }: InsightsPag
               <p className="text-sm text-muted-foreground whitespace-pre-wrap font-mono bg-muted/50 p-4 rounded-md">
                 {extraction.system_prompt_snapshot}
               </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Failure Analysis - NEW: Shows clustered failures with suggested fixes */}
+        {criteria.failure_analysis && criteria.failure_analysis.clusters && criteria.failure_analysis.clusters.length > 0 && (
+          <Card className="mb-6 border-destructive/30">
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <CardTitle className="flex items-center gap-2 text-destructive">
+                    <Bug className="h-5 w-5" />
+                    Failure Analysis
+                  </CardTitle>
+                  <CardDescription className="mt-2">
+                    {criteria.failure_analysis.total_failures} output{criteria.failure_analysis.total_failures !== 1 ? 's' : ''} failed (≤2 stars) - grouped by root cause
+                  </CardDescription>
+                </div>
+                <ApplyFixButton
+                  projectId={id.toString()}
+                  currentPrompt={(project.model_config as any).system_prompt || ''}
+                  clusters={criteria.failure_analysis.clusters}
+                  totalScenarios={totalScenarios || 0}
+                />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {criteria.failure_analysis.clusters.map((cluster: any, index: number) => (
+                  <div key={index} className="border rounded-lg p-4 bg-muted/30">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="font-semibold">{cluster.name}</h3>
+                          <Badge variant="destructive">{cluster.count} failure{cluster.count !== 1 ? 's' : ''}</Badge>
+                          {cluster.severity === 'high' && <Badge variant="destructive">High Severity</Badge>}
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-2">
+                          <span className="font-medium">Pattern:</span> {cluster.pattern}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          <span className="font-medium">Root Cause:</span> {cluster.root_cause}
+                        </p>
+                      </div>
+                    </div>
+
+                    {cluster.example_inputs && cluster.example_inputs.length > 0 && (
+                      <div className="mb-3">
+                        <p className="text-xs font-medium text-muted-foreground mb-1">Example inputs that failed:</p>
+                        <ul className="text-xs text-muted-foreground space-y-1">
+                          {cluster.example_inputs.slice(0, 2).map((input: string, i: number) => (
+                            <li key={i} className="truncate">• {input}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    <div className="bg-background border rounded-md p-3">
+                      <p className="text-xs font-medium mb-1">Suggested Fix:</p>
+                      <p className="text-sm font-mono whitespace-pre-wrap">{cluster.suggested_fix}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         )}
