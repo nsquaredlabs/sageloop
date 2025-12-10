@@ -52,23 +52,41 @@ export default async function OutputsPage({ params, searchParams }: OutputsPageP
 
   // Fetch all outputs for these scenarios, ordered by generated_at DESC
   const scenarioIds = scenarios?.map(s => s.id) || [];
-  const { data: outputs } = await supabase
-    .from('outputs')
-    .select(`
-      id,
-      scenario_id,
-      output_text,
-      generated_at,
-      ratings (
+
+  // Debug logging
+  console.log('[Outputs Page] Project ID:', id);
+  console.log('[Outputs Page] Scenarios found:', scenarios?.length || 0);
+  console.log('[Outputs Page] Scenario IDs:', scenarioIds);
+
+  // Only fetch outputs if we have scenarios
+  let outputs = null;
+  if (scenarioIds.length > 0) {
+    const { data: outputsData, error: outputsError } = await supabase
+      .from('outputs')
+      .select(`
         id,
-        stars,
-        feedback_text,
-        created_at,
-        metadata
-      )
-    `)
-    .in('scenario_id', scenarioIds)
-    .order('generated_at', { ascending: false });
+        scenario_id,
+        output_text,
+        generated_at,
+        ratings (
+          id,
+          stars,
+          feedback_text,
+          created_at,
+          metadata
+        )
+      `)
+      .in('scenario_id', scenarioIds)
+      .order('generated_at', { ascending: false });
+
+    console.log('[Outputs Page] Outputs query error:', outputsError);
+    console.log('[Outputs Page] Outputs found:', outputsData?.length || 0);
+
+    if (outputsError) {
+      console.error('Error fetching outputs:', outputsError);
+    }
+    outputs = outputsData;
+  }
 
   const modelConfig = project.model_config as {
     model?: string;
