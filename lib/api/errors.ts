@@ -59,14 +59,16 @@ export function handleApiError(error: unknown): Response {
   console.error('API Error:', error);
 
   if (error instanceof ApiError) {
-    return NextResponse.json(
-      {
-        error: error.message,
-        code: error.code,
-        ...(error.details && { details: error.details }),
-      },
-      { status: error.statusCode }
-    );
+    const response: Record<string, unknown> = {
+      error: error.message,
+      code: error.code,
+    };
+
+    if (error.details) {
+      response.details = error.details;
+    }
+
+    return NextResponse.json(response, { status: error.statusCode });
   }
 
   // Unexpected errors (generic Error, strings, etc.)
