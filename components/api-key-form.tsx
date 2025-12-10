@@ -49,6 +49,7 @@ export function ApiKeyForm({ workbenchId, initialConfigured }: ApiKeyFormProps) 
         `/api/workbenches/${workbenchId}/api-keys?provider=${provider}`,
         {
           method: 'DELETE',
+          credentials: 'include',
         }
       );
 
@@ -86,6 +87,7 @@ export function ApiKeyForm({ workbenchId, initialConfigured }: ApiKeyFormProps) 
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           ...(openaiKey && { openai: openaiKey }),
           ...(anthropicKey && { anthropic: anthropicKey }),
@@ -126,6 +128,7 @@ export function ApiKeyForm({ workbenchId, initialConfigured }: ApiKeyFormProps) 
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({ provider }),
       });
 

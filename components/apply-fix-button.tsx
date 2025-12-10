@@ -62,6 +62,7 @@ export function ApplyFixButton({
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           currentPrompt,
           clusters: clusters.map(c => ({
@@ -98,6 +99,7 @@ export function ApplyFixButton({
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           scenarioIds: allFailedScenarioIds,
           newSystemPrompt: newPrompt,

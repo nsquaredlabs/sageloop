@@ -72,6 +72,7 @@ export function RatingForm({ projectId, outputId }: RatingFormProps) {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           stars,
           feedback_text: feedbackText || null,

@@ -25,6 +25,7 @@ export function GenerateOutputsButton({ projectId, scenarioCount }: GenerateOutp
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -34,7 +35,8 @@ export function GenerateOutputsButton({ projectId, scenarioCount }: GenerateOutp
 
       const result = await response.json();
 
-      // Navigate to outputs view
+      // Refresh the page data to get new outputs, then navigate
+      router.refresh();
       router.push(`/projects/${projectId}/outputs`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate outputs');

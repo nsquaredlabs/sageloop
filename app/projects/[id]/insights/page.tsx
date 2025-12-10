@@ -10,6 +10,9 @@ import { interpretSuccessRate, interpretConfidence } from '@/lib/metrics';
 import { parseId } from '@/lib/utils';
 import { ApplyFixButton } from '@/components/apply-fix-button';
 
+// Force dynamic rendering to ensure fresh data after pattern extraction
+export const dynamic = 'force-dynamic';
+
 interface InsightsPageProps {
   params: Promise<{ id: string }>;
   searchParams?: Promise<{ extractionId?: string }>;

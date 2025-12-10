@@ -10,6 +10,9 @@ import { UploadScenariosDialog } from '@/components/upload-scenarios-dialog';
 import { GenerateOutputsButton } from '@/components/generate-outputs-button';
 import { EditProjectDialog } from '@/components/edit-project-dialog';
 
+// Force dynamic rendering to ensure fresh data after scenarios are added/removed
+export const dynamic = 'force-dynamic';
+
 interface ProjectPageProps {
   params: Promise<{ id: string }>;
 }

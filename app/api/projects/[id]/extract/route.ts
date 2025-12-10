@@ -80,6 +80,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     // Step 2: Query outputs using scenario IDs
+    // Note: We filter by version OR null to handle outputs created before versioning was added
     const { data: outputs, error: outputsError } = await supabase
       .from('outputs')
       .select(`
@@ -97,7 +98,7 @@ export async function POST(request: Request, { params }: RouteParams) {
         )
       `)
       .in('scenario_id', scenarioIds)
-      .eq('model_snapshot->>version', currentVersion.toString());
+      .or(`model_snapshot->>version.eq.${currentVersion},model_snapshot->>version.is.null`);
 
     if (outputsError) {
       console.error('Error fetching outputs:', outputsError);

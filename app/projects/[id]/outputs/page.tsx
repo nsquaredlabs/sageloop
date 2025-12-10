@@ -9,6 +9,9 @@ import { Star, CheckCircle2, AlertCircle, Copy } from 'lucide-react';
 import { AnalyzePatternsButton } from '@/components/analyze-patterns-button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
+// Force dynamic rendering to ensure fresh data after generation
+export const dynamic = 'force-dynamic';
+
 interface OutputsPageProps {
   params: Promise<{ id: string }>;
   searchParams?: Promise<{ retest?: string; version?: string; count?: string }>;
@@ -39,25 +42,42 @@ export default async function OutputsPage({ params, searchParams }: OutputsPageP
   }
 
   // Fetch scenarios with their outputs and ratings
+  // Note: Supabase doesn't support ordering nested relations in the select query
+  // We need to fetch scenarios and then get outputs separately with proper ordering
   const { data: scenarios } = await supabase
     .from('scenarios')
-    .select(`
-      *,
-      outputs (
+    .select('*')
+    .eq('project_id', id)
+    .order('order', { ascending: true });
+
+  // Fetch all outputs for these scenarios, ordered by generated_at DESC
+  const scenarioIds = scenarios?.map(s => s.id) || [];
+
+  // Only fetch outputs if we have scenarios
+  let outputs = null;
+  if (scenarioIds.length > 0) {
+    const { data: outputsData, error: outputsError } = await supabase
+      .from('outputs')
+      .select(`
         id,
+        scenario_id,
         output_text,
         generated_at,
         ratings (
           id,
           stars,
           feedback_text,
-          created_at,
-          metadata
+          created_at
         )
-      )
-    `)
-    .eq('project_id', id)
-    .order('order', { ascending: true });
+      `)
+      .in('scenario_id', scenarioIds)
+      .order('generated_at', { ascending: false });
+
+    if (outputsError) {
+      console.error('Error fetching outputs:', outputsError);
+    }
+    outputs = outputsData;
+  }
 
   const modelConfig = project.model_config as {
     model?: string;
@@ -66,10 +86,17 @@ export default async function OutputsPage({ params, searchParams }: OutputsPageP
   };
 
   // Get the most recent output for each scenario
-  const scenariosWithLatestOutput = scenarios?.map((scenario: any) => ({
-    ...scenario,
-    latestOutput: scenario.outputs?.[scenario.outputs.length - 1] || null,
-  }));
+  const scenariosWithLatestOutput = scenarios?.map((scenario: any) => {
+    // Find all outputs for this scenario (already ordered by generated_at DESC)
+    const scenarioOutputs = outputs?.filter(o => o.scenario_id === scenario.id) || [];
+    // First output is the most recent (due to DESC ordering)
+    const latestOutput = scenarioOutputs.length > 0 ? scenarioOutputs[0] : null;
+
+    return {
+      ...scenario,
+      latestOutput,
+    };
+  });
 
   const totalOutputs = scenariosWithLatestOutput?.filter(s => s.latestOutput).length || 0;
   const ratedOutputs = scenariosWithLatestOutput?.filter(
