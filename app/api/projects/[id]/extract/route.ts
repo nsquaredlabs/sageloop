@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
-import { createOpenAIClient } from '@/lib/openai';
+import { generateCompletion } from '@/lib/ai/generation';
 
 // Configuration for pattern extraction model
 // This is kept separate from user's configured model to ensure consistent, high-quality analysis
@@ -136,18 +136,13 @@ export async function POST(request: Request, { params }: RouteParams) {
     const failures = analysisData.filter((d: any) => d.stars <= 2);
     const successes = analysisData.filter((d: any) => d.stars >= 4);
 
-    // Create OpenAI client using system credentials for pattern extraction
-    // Note: Pattern extraction uses system API key (not user's) to ensure consistent analysis
-    const openai = createOpenAIClient(undefined); // undefined = use system key from env
-
     // Call OpenAI to analyze patterns with focus on failure clustering
-    const completion = await openai.chat.completions.create({
+    // Note: Pattern extraction uses system API key (not user's) to ensure consistent analysis
+    const result = await generateCompletion({
+      provider: EXTRACTION_MODEL_CONFIG.provider,
       model: EXTRACTION_MODEL_CONFIG.model,
       temperature: EXTRACTION_MODEL_CONFIG.temperature,
-      messages: [
-        {
-          role: 'system',
-          content: `You are an expert at analyzing AI output quality patterns and diagnosing failures.
+      systemPrompt: `You are an expert at analyzing AI output quality patterns and diagnosing failures.
 
 NOTE: You are analyzing ALL ${ratedOutputs.length} rated outputs for the current prompt version. This gives you a complete picture of the prompt's overall performance.
 
@@ -184,11 +179,8 @@ Return your analysis as a JSON object with this structure:
   ]
 }
 
-IMPORTANT: For each cluster, include the scenario_ids array with the IDs of all inputs that belong to this failure cluster. Look at the scenario_id field in the data.`
-        },
-        {
-          role: 'user',
-          content: `System prompt being tested:
+IMPORTANT: For each cluster, include the scenario_ids array with the IDs of all inputs that belong to this failure cluster. Look at the scenario_id field in the data.`,
+      userMessage: `System prompt being tested:
 """
 ${systemPrompt}
 """
@@ -197,13 +189,11 @@ Analyze these ${ratedOutputs.length} rated outputs (${failures.length} failures,
 
 ${JSON.stringify(analysisData, null, 2)}
 
-Focus on clustering failures and providing concrete fixes.`
-        }
-      ],
-      response_format: { type: 'json_object' }
+Focus on clustering failures and providing concrete fixes.`,
+      apiKey: undefined, // Use system key from env
     });
 
-    const analysisResult = JSON.parse(completion.choices[0].message.content || '{}');
+    const analysisResult = JSON.parse(result.text || '{}');
 
     // Calculate confidence score based on number of ratings
     const confidenceScore = Math.min(0.9, ratedOutputs.length / 20);
