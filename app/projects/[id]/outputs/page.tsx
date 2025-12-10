@@ -9,6 +9,9 @@ import { Star, CheckCircle2, AlertCircle, Copy } from 'lucide-react';
 import { AnalyzePatternsButton } from '@/components/analyze-patterns-button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
+// Force dynamic rendering to ensure fresh data after generation
+export const dynamic = 'force-dynamic';
+
 interface OutputsPageProps {
   params: Promise<{ id: string }>;
   searchParams?: Promise<{ retest?: string; version?: string; count?: string }>;
