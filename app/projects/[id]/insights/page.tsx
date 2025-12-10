@@ -110,6 +110,11 @@ export default async function InsightsPage({ params, searchParams }: InsightsPag
   const successRate = metric?.success_rate || 0;
   const confidenceScore = extraction.confidence_score || 0;
 
+  // Debug: Log what we're getting from the database
+  console.log('[Insights Page] Extraction ID:', extraction.id);
+  console.log('[Insights Page] Has failure_analysis:', !!criteria.failure_analysis);
+  console.log('[Insights Page] Clusters count:', criteria.failure_analysis?.clusters?.length || 0);
+
   // Get metric interpretations
   const successInterpretation = interpretSuccessRate(successRate);
   const confidenceInterpretation = interpretConfidence(confidenceScore, ratedCount || 0);
