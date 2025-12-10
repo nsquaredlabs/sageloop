@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
@@ -24,8 +24,11 @@ export default async function OutputsPage({ params, searchParams }: OutputsPageP
   const retestVersion = queryParams.version;
   const retestCount = queryParams.count;
 
+  // Use authenticated server client - enforces RLS
+  const supabase = await createServerClient();
+
   // Fetch project details
-  const { data: project, error: projectError } = await supabaseAdmin
+  const { data: project, error: projectError } = await supabase
     .from('projects')
     .select('*')
     .eq('id', id)
@@ -36,7 +39,7 @@ export default async function OutputsPage({ params, searchParams }: OutputsPageP
   }
 
   // Fetch scenarios with their outputs and ratings
-  const { data: scenarios } = await supabaseAdmin
+  const { data: scenarios } = await supabase
     .from('scenarios')
     .select(`
       *,

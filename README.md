@@ -89,12 +89,21 @@ View your local database at [http://127.0.0.1:54323](http://127.0.0.1:54323)
 
 ## Available Scripts
 
+### Development
 - `npm run dev` - Start development server
 - `npm run build` - Build for production
 - `npm start` - Start production server
 - `npm run lint` - Run ESLint
 - `npm run type-check` - Type check with TypeScript
 - `npm run supabase:gen-types` - Regenerate types from Supabase schema
+
+### Testing
+- `npm test` - Run unit tests in watch mode
+- `npm test -- --run` - Run unit tests once (CI mode)
+- `npm run test:ui` - Run tests with interactive UI
+- `npm run test:coverage` - Run tests with coverage report
+- `npm run test:e2e` - Run end-to-end tests with Playwright
+- `npm run test:e2e:ui` - Run E2E tests with interactive UI
 
 ## Database Schema
 
@@ -105,12 +114,89 @@ View your local database at [http://127.0.0.1:54323](http://127.0.0.1:54323)
 - **extractions** - AI-extracted behavioral patterns
 - **metrics** - Success metrics over time
 
+## Testing
+
+Tellah uses a comprehensive testing strategy to ensure code quality and prevent regressions:
+
+### Test Suite Structure
+
+```
+tests/
+├── setup.ts                          # Global test configuration & mocks
+├── security/
+│   └── rls.test.ts                  # Row Level Security tests
+├── unit/
+│   └── ai/
+│       └── provider-resolver.test.ts # Provider selection tests
+├── api/
+│   └── projects.test.ts              # API validation tests
+└── e2e/
+    └── project-workflow.spec.ts      # End-to-end workflow tests
+```
+
+### Running Tests Locally
+
+```bash
+# Run all unit tests (watch mode)
+npm test
+
+# Run tests once (CI mode)
+npm test -- --run
+
+# Run with interactive UI
+npm run test:ui
+
+# Run with coverage report
+npm run test:coverage
+
+# Run E2E tests (requires dev server running)
+npm run test:e2e
+```
+
+### Test Coverage
+
+- **Security Tests**: Verify Row Level Security (RLS) enforcement
+- **API Tests**: Validate request/response schemas and business logic
+- **Unit Tests**: Test provider resolution and AI integration logic
+- **E2E Tests**: Full user workflow validation with Playwright
+
+### CI/CD Pipeline
+
+The project uses GitHub Actions for continuous integration. On every push and pull request:
+
+1. **Type Checking** - Validates TypeScript types across the codebase
+2. **Unit Tests** - Runs all Vitest tests with coverage reporting
+3. **E2E Tests** - Runs Playwright tests in Chromium
+4. **Artifacts** - Uploads test reports and coverage to Codecov
+
+**Pipeline Configuration**: [.github/workflows/test.yml](.github/workflows/test.yml)
+
+**Required Secrets** (for CI):
+- `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anonymous key
+
+**Test Results**:
+- Playwright reports are available as workflow artifacts
+- Coverage reports are uploaded to Codecov (optional)
+
+### Writing Tests
+
+Tests use:
+- **Vitest** - Fast unit test runner with native ESM support
+- **React Testing Library** - Component testing utilities
+- **Playwright** - Cross-browser E2E testing
+- **MSW** - API mocking for integration tests
+
+See [docs/sprint-0-summary.md](docs/sprint-0-summary.md) for detailed testing setup documentation.
+
 ## Development Workflow
 
 1. Make changes to the database schema in `supabase/migrations/`
 2. Apply migrations: `supabase db reset`
 3. Regenerate types: `npm run supabase:gen-types`
 4. Build features using the typed Supabase client
+5. Write tests to verify functionality
+6. Run `npm test` to ensure tests pass before committing
 
 ## Documentation
 

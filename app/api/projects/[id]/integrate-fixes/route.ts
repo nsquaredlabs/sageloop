@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
-import OpenAI from 'openai';
+import { createOpenAIClient } from '@/lib/openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Configuration for fix integration model
+// Uses system API key to ensure consistent, high-quality prompt improvements
+const FIX_INTEGRATION_MODEL_CONFIG = {
+  model: 'gpt-4-turbo' as const,
+  temperature: 0.3,
+  // Future: could make this configurable to support other providers
+  provider: 'openai' as const,
+};
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -55,10 +60,14 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
     }
 
+    // Create OpenAI client using system credentials for fix integration
+    // Note: Fix integration uses system API key (not user's) to ensure consistent quality
+    const openai = createOpenAIClient(undefined); // undefined = use system key from env
+
     // Use GPT-4 to intelligently integrate all fixes into the prompt
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4-turbo',
-      temperature: 0.3,
+      model: FIX_INTEGRATION_MODEL_CONFIG.model,
+      temperature: FIX_INTEGRATION_MODEL_CONFIG.temperature,
       messages: [
         {
           role: 'system',

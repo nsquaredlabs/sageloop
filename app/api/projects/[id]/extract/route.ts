@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
-import OpenAI from 'openai';
+import { createOpenAIClient } from '@/lib/openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Configuration for pattern extraction model
+// This is kept separate from user's configured model to ensure consistent, high-quality analysis
+const EXTRACTION_MODEL_CONFIG = {
+  model: 'gpt-4-turbo' as const,
+  temperature: 0.3,
+  // Future: could make this configurable to support other providers (Anthropic, etc.)
+  provider: 'openai' as const,
+};
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -49,6 +54,32 @@ export async function POST(request: Request, { params }: RouteParams) {
 
     // Fetch ALL rated outputs for the current prompt version
     // This ensures we analyze the complete picture of the current prompt's performance
+    // IMPORTANT: Use two-step query pattern to avoid PostgREST nested filter limitation
+
+    // Step 1: Get scenario IDs for this project
+    const { data: scenarios, error: scenariosError } = await supabase
+      .from('scenarios')
+      .select('id')
+      .eq('project_id', projectId);
+
+    if (scenariosError) {
+      console.error('Error fetching scenarios:', scenariosError);
+      return NextResponse.json(
+        { error: 'Failed to fetch scenarios' },
+        { status: 500 }
+      );
+    }
+
+    const scenarioIds = scenarios?.map(s => s.id) || [];
+
+    if (scenarioIds.length === 0) {
+      return NextResponse.json(
+        { error: 'No scenarios found for this project. Please add scenarios first.' },
+        { status: 400 }
+      );
+    }
+
+    // Step 2: Query outputs using scenario IDs
     const { data: outputs, error: outputsError } = await supabase
       .from('outputs')
       .select(`
@@ -65,7 +96,7 @@ export async function POST(request: Request, { params }: RouteParams) {
           input_text
         )
       `)
-      .eq('scenario.project_id', projectId)
+      .in('scenario_id', scenarioIds)
       .eq('model_snapshot->>version', currentVersion.toString());
 
     if (outputsError) {
@@ -105,10 +136,14 @@ export async function POST(request: Request, { params }: RouteParams) {
     const failures = analysisData.filter((d: any) => d.stars <= 2);
     const successes = analysisData.filter((d: any) => d.stars >= 4);
 
+    // Create OpenAI client using system credentials for pattern extraction
+    // Note: Pattern extraction uses system API key (not user's) to ensure consistent analysis
+    const openai = createOpenAIClient(undefined); // undefined = use system key from env
+
     // Call OpenAI to analyze patterns with focus on failure clustering
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4-turbo',
-      temperature: 0.3,
+      model: EXTRACTION_MODEL_CONFIG.model,
+      temperature: EXTRACTION_MODEL_CONFIG.temperature,
       messages: [
         {
           role: 'system',

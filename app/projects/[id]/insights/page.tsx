@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -23,8 +23,11 @@ export default async function InsightsPage({ params, searchParams }: InsightsPag
   const queryParams = searchParams ? await searchParams : {};
   const extractionId = queryParams.extractionId ? parseId(queryParams.extractionId) : null;
 
+  // Use authenticated server client - enforces RLS
+  const supabase = await createServerClient();
+
   // Fetch project details
-  const { data: project, error: projectError } = await supabaseAdmin
+  const { data: project, error: projectError } = await supabase
     .from('projects')
     .select('*')
     .eq('id', id)
@@ -35,7 +38,7 @@ export default async function InsightsPage({ params, searchParams }: InsightsPag
   }
 
   // Fetch extraction (specific one if extractionId provided, otherwise latest)
-  const extractionQuery = supabaseAdmin
+  const extractionQuery = supabase
     .from('extractions')
     .select('*, system_prompt_snapshot');
 
@@ -51,7 +54,7 @@ export default async function InsightsPage({ params, searchParams }: InsightsPag
   const { data: extraction } = await extractionQuery.single();
 
   // Fetch metric (for the specific extraction if provided, otherwise latest)
-  const metricQuery = supabaseAdmin
+  const metricQuery = supabase
     .from('metrics')
     .select('*');
 
@@ -72,7 +75,7 @@ export default async function InsightsPage({ params, searchParams }: InsightsPag
   const ratedCount = extraction?.rated_output_count || 0;
 
   // Fetch total scenario count for the project
-  const { count: totalScenarios } = await supabaseAdmin
+  const { count: totalScenarios } = await supabase
     .from('scenarios')
     .select('*', { count: 'exact', head: true })
     .eq('project_id', id);

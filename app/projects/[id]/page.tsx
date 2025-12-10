@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
 import { notFound } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -18,8 +18,11 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
   const { id: idString } = await params;
   const id = parseId(idString);
 
+  // Use authenticated server client - enforces RLS
+  const supabase = await createServerClient();
+
   // Fetch project with scenarios
-  const { data: project, error: projectError } = await supabaseAdmin
+  const { data: project, error: projectError } = await supabase
     .from('projects')
     .select('*')
     .eq('id', id)
@@ -29,7 +32,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     notFound();
   }
 
-  const { data: scenarios } = await supabaseAdmin
+  const { data: scenarios } = await supabase
     .from('scenarios')
     .select('*')
     .eq('project_id', id)
