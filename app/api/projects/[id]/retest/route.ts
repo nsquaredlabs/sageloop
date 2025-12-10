@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
-import { createOpenAIClient } from '@/lib/openai';
-import { createAnthropicClient } from '@/lib/anthropic';
+import { resolveProvider } from '@/lib/ai/provider-resolver';
+import { generateCompletion } from '@/lib/ai/generation';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -112,40 +112,10 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     // Determine which provider and model to use
-    let modelName = modelConfig.model || 'gpt-3.5-turbo';
-    let isClaudeModel = modelName.includes('claude');
-    let provider: 'openai' | 'anthropic' = isClaudeModel ? 'anthropic' : 'openai';
-    let usingFallback = false;
-
-    // Check if user has configured their own API keys
-    const hasUserKeys = apiKeys?.openai || apiKeys?.anthropic;
-
-    if (!hasUserKeys) {
-      // No user keys - use system keys with inexpensive model
-      console.log('No user API keys configured, using system fallback');
-      modelName = 'gpt-3.5-turbo';
-      provider = 'openai';
-      isClaudeModel = false;
-      usingFallback = true;
-    } else if (!apiKeys[provider]) {
-      // User has keys but not for the requested provider
-      if (apiKeys.openai) {
-        console.log(`User requested ${provider} but only has OpenAI key, falling back to GPT-3.5 Turbo`);
-        modelName = 'gpt-3.5-turbo';
-        provider = 'openai';
-        isClaudeModel = false;
-        usingFallback = true;
-      } else if (apiKeys.anthropic) {
-        console.log(`User requested ${provider} but only has Anthropic key, falling back to Claude Haiku`);
-        modelName = 'claude-haiku-4-5-20251001';
-        provider = 'anthropic';
-        isClaudeModel = true;
-        usingFallback = true;
-      }
-    }
-
-    // Get the appropriate API key (user's or system's)
-    const apiKey = usingFallback ? undefined : (apiKeys?.[provider] ?? undefined);
+    const { provider, modelName, apiKey, usingFallback } = resolveProvider(
+      modelConfig.model || 'gpt-3.5-turbo',
+      apiKeys
+    );
 
     // Calculate success rate before change (for failed scenarios only)
     const { data: oldOutputs } = await supabase
@@ -228,46 +198,18 @@ export async function POST(request: Request, { params }: RouteParams) {
     const newOutputs = [];
     for (const scenario of scenarios) {
       try {
-        let outputText = '';
-        let usage = {};
+        // Generate completion using unified service
+        const result = await generateCompletion({
+          provider,
+          model: modelName,
+          temperature: modelConfig.temperature ?? 0.7,
+          systemPrompt: newSystemPrompt,
+          userMessage: scenario.input_text,
+          apiKey,
+        });
 
-        if (provider === 'openai') {
-          const openai = createOpenAIClient(apiKey);
-          const completion = await openai.chat.completions.create({
-            model: modelName,
-            temperature: modelConfig.temperature ?? 0.7,
-            messages: [
-              ...(newSystemPrompt
-                ? [{ role: 'system' as const, content: newSystemPrompt }]
-                : []),
-              { role: 'user' as const, content: scenario.input_text },
-            ],
-          });
-
-          outputText = completion.choices[0]?.message?.content || '';
-          usage = {
-            completion_tokens: completion.usage?.completion_tokens,
-            prompt_tokens: completion.usage?.prompt_tokens,
-            total_tokens: completion.usage?.total_tokens,
-          };
-        } else {
-          const anthropic = createAnthropicClient(apiKey);
-          const message = await anthropic.messages.create({
-            model: modelName,
-            max_tokens: 4096,
-            temperature: modelConfig.temperature ?? 0.7,
-            system: newSystemPrompt,
-            messages: [
-              { role: 'user', content: scenario.input_text },
-            ],
-          });
-
-          outputText = message.content[0]?.type === 'text' ? message.content[0].text : '';
-          usage = {
-            input_tokens: message.usage.input_tokens,
-            output_tokens: message.usage.output_tokens,
-          };
-        }
+        const outputText = result.text;
+        const usage = result.usage;
 
         // Save new output
         const { data: output, error: outputError } = await supabase

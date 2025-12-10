@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
-import { createOpenAIClient } from '@/lib/openai';
+import { generateCompletion } from '@/lib/ai/generation';
 
 // Configuration for fix integration model
 // Uses system API key to ensure consistent, high-quality prompt improvements
@@ -60,18 +60,13 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
     }
 
-    // Create OpenAI client using system credentials for fix integration
-    // Note: Fix integration uses system API key (not user's) to ensure consistent quality
-    const openai = createOpenAIClient(undefined); // undefined = use system key from env
-
     // Use GPT-4 to intelligently integrate all fixes into the prompt
-    const completion = await openai.chat.completions.create({
+    // Note: Fix integration uses system API key (not user's) to ensure consistent quality
+    const result = await generateCompletion({
+      provider: FIX_INTEGRATION_MODEL_CONFIG.provider,
       model: FIX_INTEGRATION_MODEL_CONFIG.model,
       temperature: FIX_INTEGRATION_MODEL_CONFIG.temperature,
-      messages: [
-        {
-          role: 'system',
-          content: `You are an expert at improving system prompts for LLMs. Your task is to integrate multiple suggested fixes into an existing system prompt in a coherent, natural way.
+      systemPrompt: `You are an expert at improving system prompts for LLMs. Your task is to integrate multiple suggested fixes into an existing system prompt in a coherent, natural way.
 
 IMPORTANT GUIDELINES:
 1. **Integrate, don't append**: The fixes should be woven into the existing prompt structure, not just added at the end
@@ -82,10 +77,7 @@ IMPORTANT GUIDELINES:
 6. **Make it natural**: The updated prompt should read as if written by one person, not cobbled together
 
 Return ONLY the updated system prompt, with no explanation or commentary.`,
-        },
-        {
-          role: 'user',
-          content: `Current System Prompt:
+      userMessage: `Current System Prompt:
 """
 ${currentPrompt}
 """
@@ -98,11 +90,10 @@ ${i + 1}. ${c.name}
 `).join('\n')}
 
 Integrate all ${clusters.length} fixes into the system prompt in a natural, coherent way. Return ONLY the updated prompt.`,
-        },
-      ],
+      apiKey: undefined, // Use system key from env
     });
 
-    const updatedPrompt = completion.choices[0].message.content || currentPrompt;
+    const updatedPrompt = result.text || currentPrompt;
 
     return NextResponse.json({
       updatedPrompt,
