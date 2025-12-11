@@ -122,25 +122,20 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
     saveFeedback(outputId, ratingId, text);
   };
 
-  // Find outputs that need rating (either unrated or carried-forward needing review)
-  const unratedOutputs = scenarios
+  // Find all outputs with generated content (for quick rating)
+  const ratableOutputs = scenarios
     .map((scenario, index) => ({
       scenario,
       index,
       output: scenario.latestOutput,
     }))
-    .filter(item => {
-      if (!item.output) return false;
+    .filter(item => item.output !== null);
 
-      const rating = item.output.ratings?.[0];
-
-      // Include if unrated
-      if (!rating) return true;
-
-      // Include if carried forward and needs review
-      const metadata = rating.metadata;
-      return metadata?.carried_forward === true && metadata?.needs_review === true;
-    });
+  // Separate truly unrated outputs for messaging
+  const unratedCount = ratableOutputs.filter(item => {
+    const rating = item.output?.ratings?.[0];
+    return !rating;
+  }).length;
 
   const handleQuickRate = useCallback(async (outputId: number, stars: number, scenarioIndex: number) => {
     try {
@@ -176,29 +171,29 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
       // Refresh the page to show updated data
       router.refresh();
 
-      // Auto-advance to next unrated output in quick rate mode
+      // Auto-advance to next output in quick rate mode
       if (isQuickRateMode) {
-        const currentUnratedIndex = unratedOutputs.findIndex(item => item.index === scenarioIndex);
-        if (currentUnratedIndex < unratedOutputs.length - 1) {
-          const nextUnrated = unratedOutputs[currentUnratedIndex + 1];
-          setSelectedIndex(nextUnrated.index);
+        const currentIndex = ratableOutputs.findIndex(item => item.index === scenarioIndex);
+        if (currentIndex < ratableOutputs.length - 1) {
+          const nextOutput = ratableOutputs[currentIndex + 1];
+          setSelectedIndex(nextOutput.index);
           // Scroll to next card
           setTimeout(() => {
-            const element = document.getElementById(`output-${nextUnrated.index}`);
+            const element = document.getElementById(`output-${nextOutput.index}`);
             element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
           }, 100);
         } else {
-          // All rated, exit quick rate mode
+          // End of list, exit quick rate mode
           setIsQuickRateMode(false);
           setSelectedIndex(null);
-          toast.success('All outputs rated!');
+          toast.success('Finished reviewing outputs!');
         }
       }
     } catch (error) {
       console.error('Error rating output:', error);
       toast.error('Failed to rate output');
     }
-  }, [supabase, router, isQuickRateMode, unratedOutputs]);
+  }, [supabase, router, isQuickRateMode, ratableOutputs]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -213,14 +208,8 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
         const scenario = scenarios[selectedIndex];
         const output = scenario?.latestOutput;
         if (output) {
-          const rating = output.ratings?.[0];
-          const metadata = rating?.metadata;
-          const needsReview = metadata?.carried_forward === true && metadata?.needs_review === true;
-
-          // Allow rating if: unrated, or carried-forward and needs review
-          if (!rating || needsReview) {
-            handleQuickRate(output.id, parseInt(e.key), selectedIndex);
-          }
+          // Allow rating/updating any output
+          handleQuickRate(output.id, parseInt(e.key), selectedIndex);
         }
         return;
       }
@@ -264,11 +253,11 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
 
   const startQuickRate = () => {
     setIsQuickRateMode(true);
-    if (unratedOutputs.length > 0) {
-      setSelectedIndex(unratedOutputs[0].index);
-      // Scroll to first unrated
+    if (ratableOutputs.length > 0) {
+      setSelectedIndex(ratableOutputs[0].index);
+      // Scroll to first output
       setTimeout(() => {
-        const element = document.getElementById(`output-${unratedOutputs[0].index}`);
+        const element = document.getElementById(`output-${ratableOutputs[0].index}`);
         element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 100);
     }
@@ -298,12 +287,12 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
       )}
 
       {/* Quick Rate Mode controls */}
-      {unratedOutputs.length > 0 && (
+      {ratableOutputs.length > 0 && (
         <div className="mb-6 flex items-center gap-3">
           {!isQuickRateMode ? (
             <Button onClick={startQuickRate} size="lg" variant="default">
               <Star className="mr-2 h-4 w-4" />
-              Quick Rate ({unratedOutputs.length} to review)
+              Quick Rate ({unratedCount > 0 ? `${unratedCount} unrated` : 'All outputs'})
             </Button>
           ) : (
             <div className="flex items-center gap-3 p-3 bg-primary/10 border border-primary/20 rounded-lg flex-1">
@@ -314,7 +303,7 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
                 </p>
               </div>
               <Badge variant="secondary">
-                {unratedOutputs.length} remaining
+                {selectedIndex !== null ? `${selectedIndex + 1} / ${scenarios.length}` : `${scenarios.length} total`}
               </Badge>
               <Button
                 onClick={() => {
@@ -404,9 +393,9 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
                           )}
                         </>
                       )}
-                      {isSelected && (!rating || needsReview) && (
+                      {isSelected && (
                         <Badge variant="default" className="text-xs">
-                          Selected - Press 1-5 to {needsReview ? 'update' : 'rate'}
+                          Selected - Press 1-5 to {rating ? 'update' : 'rate'}
                         </Badge>
                       )}
                     </div>
@@ -498,10 +487,10 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
                       </div>
                     )}
 
-                    {(!rating || needsReview) && isSelected && (
+                    {isSelected && (
                       <div className="pt-4 border-t">
                         <p className="text-sm font-medium mb-3 text-center">
-                          {needsReview ? 'Update rating' : 'Rate this output'}
+                          {rating ? 'Update rating' : 'Rate this output'}
                         </p>
                         <div className="flex items-center justify-center gap-2">
                           {[1, 2, 3, 4, 5].map((stars) => (
@@ -511,7 +500,7 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
                                 e.stopPropagation();
                                 handleQuickRate(output.id, stars, index);
                               }}
-                              variant={needsReview && rating?.stars === stars ? "default" : "outline"}
+                              variant={rating?.stars === stars ? "default" : "outline"}
                               size="lg"
                               className="h-16 w-16 flex flex-col hover:bg-primary hover:text-primary-foreground transition-colors"
                             >
@@ -523,7 +512,7 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
                         <div className="mt-3 text-center">
                           <Button asChild variant="ghost" size="sm">
                             <Link href={`/projects/${projectId}/outputs/${output.id}/rate`}>
-                              {needsReview ? 'Add detailed feedback' : 'Add detailed feedback'}
+                              Add detailed feedback
                             </Link>
                           </Button>
                         </div>
