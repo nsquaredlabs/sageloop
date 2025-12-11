@@ -3,6 +3,8 @@ import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
 import { resolveProvider } from '@/lib/ai/provider-resolver';
 import { generateCompletion } from '@/lib/ai/generation';
+import type { ModelConfig, UserApiKeys, ModelSnapshot } from '@/types/database';
+import type { GenerateOutputsResponse } from '@/types/api';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -40,7 +42,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     // Fetch workbench API keys
     const { data: apiKeys, error: keysError } = await supabase
       .rpc('get_workbench_api_keys', { workbench_uuid: project.workbench_id ?? '' }) as {
-        data: { openai?: string; anthropic?: string } | null;
+        data: UserApiKeys | null;
         error: any;
       };
 
@@ -66,11 +68,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
     }
 
-    const modelConfig = project.model_config as {
-      model?: string;
-      temperature?: number;
-      system_prompt?: string;
-    };
+    const modelConfig = project.model_config as unknown as ModelConfig;
 
     // Determine which provider and model to use
     const { provider, modelName, apiKey, usingFallback } = resolveProvider(
@@ -130,13 +128,18 @@ export async function POST(request: Request, { params }: RouteParams) {
       }
     }
 
-    return NextResponse.json({
+    const response: GenerateOutputsResponse = {
       success: true,
       generated: generatedOutputs.length,
       total: scenarios.length,
-      outputs: generatedOutputs,
+      outputs: generatedOutputs.map(output => ({
+        ...output,
+        model_snapshot: output.model_snapshot as unknown as ModelSnapshot,
+      })),
       errors: errors.length > 0 ? errors : undefined,
-    });
+    };
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error('API error:', error);
     return NextResponse.json(

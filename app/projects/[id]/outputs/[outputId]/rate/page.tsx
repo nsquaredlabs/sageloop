@@ -42,8 +42,9 @@ export default async function RateOutputPage({ params }: RateOutputPageProps) {
     notFound();
   }
 
-  const scenario = output.scenario as any;
-  const project = scenario?.project;
+  // TypeScript doesn't know that notFound() ensures these are non-null
+  const scenario = output.scenario!;
+  const project = scenario.project!;
 
   return (
     <div className="min-h-screen bg-background">

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
+import type { ModelConfig } from '@/types/database';
+import type { GetVersionsResponse } from '@/types/api';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -51,13 +53,13 @@ export async function GET(_request: Request, { params }: RouteParams) {
     }
 
     // Add current version if not in iterations
-    const modelConfig = project.model_config as any;
+    const modelConfig = project.model_config as unknown as ModelConfig;
     const currentVersion = project.prompt_version || 1;
     const currentSystemPrompt = modelConfig.system_prompt || '';
 
     // Check if current version is already in iterations
     const hasCurrentVersion = iterations?.some(
-      (i: any) => i.version === currentVersion
+      (i) => i.version === currentVersion
     );
 
     const versions = [
@@ -71,18 +73,15 @@ export async function GET(_request: Request, { params }: RouteParams) {
         improvement_note: 'Current version',
         success_rate_before: null,
         success_rate_after: null,
-        is_current: true,
       }]),
-      ...(iterations || []).map((i: any) => ({
-        ...i,
-        is_current: i.version === currentVersion,
-      })),
+      ...(iterations || []),
     ];
 
-    return NextResponse.json({
-      current_version: currentVersion,
-      versions,
-    });
+    const response: GetVersionsResponse = {
+      data: versions,
+    };
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error('API error:', error);
     return NextResponse.json(
