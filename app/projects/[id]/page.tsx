@@ -45,6 +45,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     model?: string;
     temperature?: number;
     system_prompt?: string;
+    variables?: Record<string, string>;
   };
 
   return (
@@ -87,6 +88,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
               currentSystemPrompt={modelConfig.system_prompt || ''}
               currentModel={modelConfig.model || 'gpt-4'}
               currentTemperature={modelConfig.temperature ?? 0.7}
+              currentVariables={modelConfig.variables}
             />
           </div>
         </div>

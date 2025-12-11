@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { generateCompletion } from '@/lib/ai/generation';
+import { generateCompletion, interpolateVariables } from '@/lib/ai/generation';
 
 /**
  * Generation Service Tests (Sprint 2 - Issue #5)
@@ -270,5 +270,187 @@ describe('Generation Service - Edge Cases', () => {
         temperature: 0.7, // Default value
       })
     );
+  });
+});
+
+describe('interpolateVariables', () => {
+  it('should return prompt unchanged when no variables provided', () => {
+    const prompt = 'Hello, world!';
+    expect(interpolateVariables(prompt)).toBe(prompt);
+    expect(interpolateVariables(prompt, {})).toBe(prompt);
+  });
+
+  it('should interpolate a single variable', () => {
+    const prompt = 'Today is {{current_date}}.';
+    const variables = { current_date: '2025-12-11' };
+    expect(interpolateVariables(prompt, variables)).toBe('Today is 2025-12-11.');
+  });
+
+  it('should interpolate multiple variables', () => {
+    const prompt = 'Hello {{name}}, today is {{date}} and the weather is {{weather}}.';
+    const variables = {
+      name: 'Alice',
+      date: '2025-12-11',
+      weather: 'sunny',
+    };
+    expect(interpolateVariables(prompt, variables)).toBe(
+      'Hello Alice, today is 2025-12-11 and the weather is sunny.'
+    );
+  });
+
+  it('should interpolate the same variable multiple times', () => {
+    const prompt = '{{greeting}}, {{name}}! {{greeting}} again, {{name}}!';
+    const variables = {
+      greeting: 'Hello',
+      name: 'Bob',
+    };
+    expect(interpolateVariables(prompt, variables)).toBe(
+      'Hello, Bob! Hello again, Bob!'
+    );
+  });
+
+  it('should leave undefined variables unchanged', () => {
+    const prompt = 'Hello {{name}}, today is {{date}}.';
+    const variables = { name: 'Charlie' };
+    expect(interpolateVariables(prompt, variables)).toBe(
+      'Hello Charlie, today is {{date}}.'
+    );
+  });
+
+  it('should handle empty string values', () => {
+    const prompt = 'Hello {{name}}!';
+    const variables = { name: '' };
+    expect(interpolateVariables(prompt, variables)).toBe('Hello !');
+  });
+
+  it('should handle date-sensitive scenario from requirements', () => {
+    const prompt =
+      'You are a helpful assistant. Today\'s date is {{current_date}}. Parse dates relative to today.';
+    const variables = { current_date: '2025-12-11' };
+    expect(interpolateVariables(prompt, variables)).toBe(
+      "You are a helpful assistant. Today's date is 2025-12-11. Parse dates relative to today."
+    );
+  });
+
+  it('should handle complex multi-line prompts', () => {
+    const prompt = `You are {{assistant_name}}.
+Today is {{current_date}}.
+User timezone: {{timezone}}.
+
+Please respond helpfully.`;
+
+    const variables = {
+      assistant_name: 'Claude',
+      current_date: '2025-12-11',
+      timezone: 'PST',
+    };
+
+    expect(interpolateVariables(prompt, variables)).toBe(
+      `You are Claude.
+Today is 2025-12-11.
+User timezone: PST.
+
+Please respond helpfully.`
+    );
+  });
+
+  it('should not interpolate partial matches', () => {
+    const prompt = 'Value: {{var}} and {{variable}}';
+    const variables = { var: 'A' };
+    expect(interpolateVariables(prompt, variables)).toBe(
+      'Value: A and {{variable}}'
+    );
+  });
+
+  it('should handle variables in both system prompt and user message context', () => {
+    const systemPrompt = 'You are a helpful assistant. Today is {{current_date}}.';
+    const userMessage = 'What events are happening on {{event_date}}?';
+    const variables = {
+      current_date: '2025-12-11',
+      event_date: 'Feb 28, 2025',
+    };
+
+    expect(interpolateVariables(systemPrompt, variables)).toBe(
+      'You are a helpful assistant. Today is 2025-12-11.'
+    );
+    expect(interpolateVariables(userMessage, variables)).toBe(
+      'What events are happening on Feb 28, 2025?'
+    );
+  });
+});
+
+describe('Generation Service - Variable Interpolation Integration', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should interpolate variables in OpenAI completion', async () => {
+    const { createOpenAIClient } = await import('@/lib/openai');
+    const mockCreate = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: 'Response' } }],
+      usage: { completion_tokens: 5, prompt_tokens: 10, total_tokens: 15 },
+    });
+
+    (createOpenAIClient as any).mockReturnValue({
+      chat: {
+        completions: {
+          create: mockCreate,
+        },
+      },
+    });
+
+    await generateCompletion({
+      provider: 'openai',
+      model: 'gpt-4',
+      systemPrompt: 'Today is {{current_date}}.',
+      userMessage: 'What is the date {{days}} days from now?',
+      variables: {
+        current_date: '2025-12-11',
+        days: '7',
+      },
+    });
+
+    expect(mockCreate).toHaveBeenCalledWith({
+      model: 'gpt-4',
+      temperature: 0.7,
+      messages: [
+        { role: 'system', content: 'Today is 2025-12-11.' },
+        { role: 'user', content: 'What is the date 7 days from now?' },
+      ],
+    });
+  });
+
+  it('should interpolate variables in Anthropic completion', async () => {
+    const { createAnthropicClient } = await import('@/lib/anthropic');
+    const mockCreate = vi.fn().mockResolvedValue({
+      content: [{ type: 'text', text: 'Response' }],
+      usage: { input_tokens: 10, output_tokens: 20 },
+    });
+
+    (createAnthropicClient as any).mockReturnValue({
+      messages: {
+        create: mockCreate,
+      },
+    });
+
+    await generateCompletion({
+      provider: 'anthropic',
+      model: 'claude-opus-4',
+      systemPrompt: 'You are {{assistant_name}}. Today is {{current_date}}.',
+      userMessage: 'Parse this date: {{date_text}}',
+      variables: {
+        assistant_name: 'Claude',
+        current_date: '2025-12-11',
+        date_text: 'next Thursday',
+      },
+    });
+
+    expect(mockCreate).toHaveBeenCalledWith({
+      model: 'claude-opus-4',
+      max_tokens: 4096,
+      temperature: 0.7,
+      system: 'You are Claude. Today is 2025-12-11.',
+      messages: [{ role: 'user', content: 'Parse this date: next Thursday' }],
+    });
   });
 });

@@ -8,6 +8,34 @@
 import { createOpenAIClient } from '@/lib/openai';
 import { createAnthropicClient } from '@/lib/anthropic';
 
+/**
+ * Interpolates variables into a prompt using {{variable_name}} syntax
+ *
+ * @param prompt - The prompt template containing {{variable}} placeholders
+ * @param variables - Record of variable names to values
+ * @returns The prompt with variables replaced by their values
+ *
+ * @example
+ * interpolateVariables(
+ *   "Today is {{current_date}}. You are {{assistant_name}}.",
+ *   { current_date: "2025-12-11", assistant_name: "Claude" }
+ * )
+ * // Returns: "Today is 2025-12-11. You are Claude."
+ */
+export function interpolateVariables(
+  prompt: string,
+  variables?: Record<string, string>
+): string {
+  if (!variables || Object.keys(variables).length === 0) {
+    return prompt;
+  }
+
+  return Object.entries(variables).reduce((result, [key, value]) => {
+    // Replace all occurrences of {{key}} with value
+    return result.replace(new RegExp(`{{${key}}}`, 'g'), value);
+  }, prompt);
+}
+
 export interface GenerationConfig {
   provider: 'openai' | 'anthropic';
   model: string;
@@ -16,6 +44,7 @@ export interface GenerationConfig {
   userMessage: string;
   apiKey?: string;
   maxTokens?: number;
+  variables?: Record<string, string>;
 }
 
 export interface GenerationResult {
@@ -71,7 +100,14 @@ export async function generateCompletion(
     userMessage,
     apiKey,
     maxTokens,
+    variables,
   } = config;
+
+  // Interpolate variables into prompts
+  const interpolatedSystemPrompt = systemPrompt
+    ? interpolateVariables(systemPrompt, variables)
+    : undefined;
+  const interpolatedUserMessage = interpolateVariables(userMessage, variables);
 
   if (provider === 'openai') {
     const openai = createOpenAIClient(apiKey);
@@ -79,8 +115,8 @@ export async function generateCompletion(
       model,
       temperature,
       messages: [
-        ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt }] : []),
-        { role: 'user' as const, content: userMessage },
+        ...(interpolatedSystemPrompt ? [{ role: 'system' as const, content: interpolatedSystemPrompt }] : []),
+        { role: 'user' as const, content: interpolatedUserMessage },
       ],
     });
 
@@ -99,8 +135,8 @@ export async function generateCompletion(
       model,
       max_tokens: maxTokens || 4096,
       temperature,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userMessage }],
+      system: interpolatedSystemPrompt,
+      messages: [{ role: 'user', content: interpolatedUserMessage }],
     });
 
     return {

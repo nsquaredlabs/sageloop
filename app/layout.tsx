@@ -3,6 +3,7 @@ import "./globals.css";
 import { createServerClient } from '@/lib/supabase';
 import { UserMenu } from '@/components/auth/user-menu';
 import Link from 'next/link';
+import { Toaster } from 'sonner';
 
 export const metadata: Metadata = {
   title: "Tellah - AI Evals for PMs",
@@ -43,6 +44,7 @@ export default async function RootLayout({
           </nav>
         )}
         {children}
+        <Toaster />
       </body>
     </html>
   );
