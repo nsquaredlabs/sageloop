@@ -18,6 +18,7 @@ export const createProjectSchema = z.object({
     model: z.string().min(1, 'Model is required'),
     temperature: z.number().min(0).max(2).optional(),
     system_prompt: z.string().optional(),
+    variables: z.record(z.string(), z.string()).optional(),
   }),
 });
 

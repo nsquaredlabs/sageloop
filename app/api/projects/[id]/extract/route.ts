@@ -204,7 +204,14 @@ Focus on clustering failures and providing concrete fixes.`,
       apiKey: undefined, // Use system key from env
     });
 
-    const analysisResult = JSON.parse(result.text || '{}');
+    // Clean markdown code blocks if present
+    let cleanedText = result.text || '{}';
+    const jsonMatch = cleanedText.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+    if (jsonMatch) {
+      cleanedText = jsonMatch[1].trim();
+    }
+
+    const analysisResult = JSON.parse(cleanedText);
 
     // Calculate confidence score based on number of ratings
     const confidenceScore = Math.min(0.9, ratedOutputs.length / 20);

@@ -173,6 +173,7 @@ export async function POST(request: Request, { params }: RouteParams) {
           systemPrompt: newSystemPrompt,
           userMessage: scenario.input_text,
           apiKey,
+          variables: modelConfig.variables,
         });
 
         const outputText = result.text;
@@ -188,6 +189,7 @@ export async function POST(request: Request, { params }: RouteParams) {
               model: modelName,
               temperature: modelConfig.temperature ?? 0.7,
               system_prompt: newSystemPrompt,
+              variables: modelConfig.variables,
               version: newVersion,
               ...usage,
             },

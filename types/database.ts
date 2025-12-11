@@ -35,6 +35,7 @@ export interface ModelConfig {
   model: string;
   temperature?: number;
   system_prompt?: string;
+  variables?: Record<string, string>;
 }
 
 // ============================================================================
@@ -49,6 +50,7 @@ export interface ModelSnapshot {
   model: string;
   temperature: number;
   system_prompt?: string;
+  variables?: Record<string, string>;
   version?: number;
   // OpenAI token usage
   completion_tokens?: number;

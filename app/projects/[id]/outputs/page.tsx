@@ -1,13 +1,12 @@
 import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Star, CheckCircle2, AlertCircle, Copy } from 'lucide-react';
+import { CheckCircle2, AlertCircle } from 'lucide-react';
 import { AnalyzePatternsButton } from '@/components/analyze-patterns-button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { OutputsList } from '@/components/outputs-list';
+import { Card, CardContent } from '@/components/ui/card';
 
 // Force dynamic rendering to ensure fresh data after generation
 export const dynamic = 'force-dynamic';
@@ -164,140 +163,7 @@ export default async function OutputsPage({ params, searchParams }: OutputsPageP
 
         {/* Outputs List */}
         {scenariosWithLatestOutput && scenariosWithLatestOutput.length > 0 ? (
-          <div className="space-y-6">
-            {scenariosWithLatestOutput.map((scenario: any, index: number) => {
-              const output = scenario.latestOutput;
-              const rating = output?.ratings?.[0];
-              const metadata = rating?.metadata as {
-                carried_forward?: boolean;
-                similarity_score?: number;
-                needs_review?: boolean;
-              } | null;
-              const isCarriedForward = metadata?.carried_forward === true;
-              const similarityScore = metadata?.similarity_score ?? 1.0;
-              const needsReview = metadata?.needs_review === true;
-
-              return (
-                <Card key={scenario.id} className="overflow-hidden">
-                  <CardHeader className="bg-muted/30">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2 flex-wrap">
-                          <Badge variant="outline" className="font-mono text-xs">
-                            #{index + 1}
-                          </Badge>
-                          {rating && (
-                            <>
-                              <div className="flex items-center gap-1">
-                                {[...Array(5)].map((_, i) => (
-                                  <Star
-                                    key={i}
-                                    className={`h-4 w-4 ${
-                                      i < rating.stars
-                                        ? 'fill-yellow-400 text-yellow-400'
-                                        : 'text-muted-foreground/30'
-                                    }`}
-                                  />
-                                ))}
-                              </div>
-                              {isCarriedForward && (
-                                <>
-                                  <Badge
-                                    variant="secondary"
-                                    className="text-xs flex items-center gap-1"
-                                  >
-                                    <Copy className="h-3 w-3" />
-                                    Previous rating
-                                  </Badge>
-                                  {needsReview ? (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-xs flex items-center gap-1 border-amber-600 text-amber-700 dark:text-amber-400"
-                                    >
-                                      <AlertCircle className="h-3 w-3" />
-                                      Output changed - review needed
-                                    </Badge>
-                                  ) : (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-xs flex items-center gap-1 border-green-600 text-green-700 dark:text-green-400"
-                                    >
-                                      <CheckCircle2 className="h-3 w-3" />
-                                      Output unchanged ({Math.round(similarityScore * 100)}% similar)
-                                    </Badge>
-                                  )}
-                                </>
-                              )}
-                            </>
-                          )}
-                        </div>
-                        <CardTitle className="text-base font-medium">Input</CardTitle>
-                        <CardDescription className="mt-2">
-                          {scenario.input_text}
-                        </CardDescription>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-6">
-                    {output ? (
-                      <>
-                        <div className="mb-4">
-                          <h4 className="text-sm font-medium mb-2">AI Output</h4>
-                          <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                            {output.output_text}
-                          </p>
-                        </div>
-
-                        {rating?.feedback_text && (
-                          <div className="pt-4 border-t">
-                            <h4 className="text-sm font-medium mb-2">
-                              {isCarriedForward ? 'Previous Feedback' : 'Your Feedback'}
-                            </h4>
-                            <p className="text-sm text-muted-foreground">
-                              {rating.feedback_text}
-                            </p>
-                            {isCarriedForward && needsReview && (
-                              <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-lg">
-                                <p className="text-xs text-amber-900 dark:text-amber-100">
-                                  <strong>Review recommended:</strong> The output has changed since this rating. Please review to confirm the rating is still accurate.
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {!rating && (
-                          <div className="pt-4 border-t">
-                            <Button asChild variant="outline" className="w-full">
-                              <Link href={`/projects/${id}/outputs/${output.id}/rate`}>
-                                <Star className="mr-2 h-4 w-4" />
-                                Rate this output
-                              </Link>
-                            </Button>
-                          </div>
-                        )}
-
-                        {rating && isCarriedForward && (
-                          <div className="pt-4 border-t">
-                            <Button asChild variant="outline" className="w-full" size="sm">
-                              <Link href={`/projects/${id}/outputs/${output.id}/rate`}>
-                                <Star className="mr-2 h-4 w-4" />
-                                {needsReview ? 'Review & update rating' : 'Update rating'}
-                              </Link>
-                            </Button>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <p className="text-sm">No output generated yet</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+          <OutputsList projectId={id} scenarios={scenariosWithLatestOutput} />
         ) : (
           <Card className="border-dashed">
             <CardContent className="flex flex-col items-center justify-center py-16">

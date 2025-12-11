@@ -8,10 +8,10 @@ export default function Home() {
           Tellah
         </h1>
         <p className="text-2xl text-gray-600 dark:text-gray-400 mb-2">
-          AI Evals for Product Managers
+          Intelligent Prompt Engineering
         </p>
         <p className="mt-2 text-gray-500 dark:text-gray-500 mb-8">
-          Behavioral design tool for AI products
+          A platform built for PMs who need to rapidly build and test AI prompts
         </p>
         <Link
           href="/projects"
