@@ -125,7 +125,7 @@ describe('OutputsList Component', () => {
     it('should show Quick Rate button when there are unrated outputs', () => {
       render(<OutputsList projectId={1} scenarios={mockScenarios} />);
 
-      expect(screen.getByText(/Quick Rate \(1 unrated\)/i)).toBeInTheDocument();
+      expect(screen.getByText(/Quick Rate \(1 to review\)/i)).toBeInTheDocument();
     });
 
     it('should not show Quick Rate button when all outputs are rated', () => {
@@ -147,13 +147,13 @@ describe('OutputsList Component', () => {
       render(<OutputsList projectId={1} scenarios={allRatedScenarios} />);
 
       // Should not show Quick Rate button - look for the button text specifically
-      expect(screen.queryByText(/Quick Rate \(\d+ unrated\)/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Quick Rate \(\d+ to review\)/i)).not.toBeInTheDocument();
     });
 
     it('should enter Quick Rate mode when button is clicked', () => {
       render(<OutputsList projectId={1} scenarios={mockScenarios} />);
 
-      const quickRateButton = screen.getByText(/Quick Rate \(1 unrated\)/i);
+      const quickRateButton = screen.getByText(/Quick Rate \(1 to review\)/i);
       fireEvent.click(quickRateButton);
 
       expect(screen.getByText(/Quick Rate Mode Active/i)).toBeInTheDocument();
@@ -163,7 +163,7 @@ describe('OutputsList Component', () => {
     it('should exit Quick Rate mode when Exit button is clicked', () => {
       render(<OutputsList projectId={1} scenarios={mockScenarios} />);
 
-      const quickRateButton = screen.getByText(/Quick Rate \(1 unrated\)/i);
+      const quickRateButton = screen.getByText(/Quick Rate \(1 to review\)/i);
       fireEvent.click(quickRateButton);
 
       const exitButton = screen.getByText(/Exit/i);
@@ -340,7 +340,7 @@ describe('OutputsList Component', () => {
       render(<OutputsList projectId={1} scenarios={scenariosWithoutOutputs} />);
 
       // Should not show Quick Rate button when there are no outputs to rate
-      expect(screen.queryByText(/Quick Rate \(\d+ unrated\)/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Quick Rate \(\d+ to review\)/i)).not.toBeInTheDocument();
     });
   });
 

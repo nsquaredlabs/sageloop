@@ -122,28 +122,56 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
     saveFeedback(outputId, ratingId, text);
   };
 
-  // Find unrated outputs
+  // Find outputs that need rating (either unrated or carried-forward needing review)
   const unratedOutputs = scenarios
     .map((scenario, index) => ({
       scenario,
       index,
       output: scenario.latestOutput,
     }))
-    .filter(item => item.output && (!item.output.ratings || item.output.ratings.length === 0));
+    .filter(item => {
+      if (!item.output) return false;
+
+      const rating = item.output.ratings?.[0];
+
+      // Include if unrated
+      if (!rating) return true;
+
+      // Include if carried forward and needs review
+      const metadata = rating.metadata;
+      return metadata?.carried_forward === true && metadata?.needs_review === true;
+    });
 
   const handleQuickRate = useCallback(async (outputId: number, stars: number, scenarioIndex: number) => {
     try {
-      // Create rating
-      const { error } = await supabase.from('ratings').insert({
-        output_id: outputId,
-        stars,
-        feedback_text: null,
-        tags: null,
-      });
+      const scenario = scenarios[scenarioIndex];
+      const output = scenario?.latestOutput;
+      const existingRating = output?.ratings?.[0];
 
-      if (error) throw error;
+      if (existingRating) {
+        // Update existing rating (for carried-forward ratings)
+        const { error } = await supabase
+          .from('ratings')
+          .update({
+            stars,
+            metadata: null, // Clear carried_forward metadata when manually re-rating
+          })
+          .eq('id', existingRating.id);
 
-      toast.success(`Rated ${stars} stars`);
+        if (error) throw error;
+        toast.success(`Updated to ${stars} stars`);
+      } else {
+        // Create new rating
+        const { error } = await supabase.from('ratings').insert({
+          output_id: outputId,
+          stars,
+          feedback_text: null,
+          tags: null,
+        });
+
+        if (error) throw error;
+        toast.success(`Rated ${stars} stars`);
+      }
 
       // Refresh the page to show updated data
       router.refresh();
@@ -184,8 +212,15 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
       if (e.key >= '1' && e.key <= '5' && selectedIndex !== null) {
         const scenario = scenarios[selectedIndex];
         const output = scenario?.latestOutput;
-        if (output && (!output.ratings || output.ratings.length === 0)) {
-          handleQuickRate(output.id, parseInt(e.key), selectedIndex);
+        if (output) {
+          const rating = output.ratings?.[0];
+          const metadata = rating?.metadata;
+          const needsReview = metadata?.carried_forward === true && metadata?.needs_review === true;
+
+          // Allow rating if: unrated, or carried-forward and needs review
+          if (!rating || needsReview) {
+            handleQuickRate(output.id, parseInt(e.key), selectedIndex);
+          }
         }
         return;
       }
@@ -268,14 +303,14 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
           {!isQuickRateMode ? (
             <Button onClick={startQuickRate} size="lg" variant="default">
               <Star className="mr-2 h-4 w-4" />
-              Quick Rate ({unratedOutputs.length} unrated)
+              Quick Rate ({unratedOutputs.length} to review)
             </Button>
           ) : (
             <div className="flex items-center gap-3 p-3 bg-primary/10 border border-primary/20 rounded-lg flex-1">
               <div className="flex-1">
                 <p className="text-sm font-medium">Quick Rate Mode Active</p>
                 <p className="text-xs text-muted-foreground">
-                  Press 1-5 to rate • Arrow keys to navigate
+                  Press 1-5 to rate/update • Arrow keys to navigate
                 </p>
               </div>
               <Badge variant="secondary">
@@ -369,9 +404,9 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
                           )}
                         </>
                       )}
-                      {isSelected && !rating && (
+                      {isSelected && (!rating || needsReview) && (
                         <Badge variant="default" className="text-xs">
-                          Selected - Press 1-5 to rate
+                          Selected - Press 1-5 to {needsReview ? 'update' : 'rate'}
                         </Badge>
                       )}
                     </div>
@@ -463,9 +498,11 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
                       </div>
                     )}
 
-                    {!rating && isSelected && (
+                    {(!rating || needsReview) && isSelected && (
                       <div className="pt-4 border-t">
-                        <p className="text-sm font-medium mb-3 text-center">Rate this output</p>
+                        <p className="text-sm font-medium mb-3 text-center">
+                          {needsReview ? 'Update rating' : 'Rate this output'}
+                        </p>
                         <div className="flex items-center justify-center gap-2">
                           {[1, 2, 3, 4, 5].map((stars) => (
                             <Button
@@ -474,7 +511,7 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
                                 e.stopPropagation();
                                 handleQuickRate(output.id, stars, index);
                               }}
-                              variant="outline"
+                              variant={needsReview && rating?.stars === stars ? "default" : "outline"}
                               size="lg"
                               className="h-16 w-16 flex flex-col hover:bg-primary hover:text-primary-foreground transition-colors"
                             >
@@ -486,7 +523,7 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
                         <div className="mt-3 text-center">
                           <Button asChild variant="ghost" size="sm">
                             <Link href={`/projects/${projectId}/outputs/${output.id}/rate`}>
-                              Add detailed feedback
+                              {needsReview ? 'Add detailed feedback' : 'Add detailed feedback'}
                             </Link>
                           </Button>
                         </div>
