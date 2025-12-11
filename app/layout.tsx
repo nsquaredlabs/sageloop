@@ -6,8 +6,8 @@ import Link from 'next/link';
 import { Toaster } from 'sonner';
 
 export const metadata: Metadata = {
-  title: "Tellah - AI Evals for PMs",
-  description: "Behavioral design tool for AI products",
+  title: "Tellah - Intelligent Prompt Engineering",
+  description: "A platform built for PMs who need to rapidly build and test AI prompts",
 };
 
 export default async function RootLayout({
