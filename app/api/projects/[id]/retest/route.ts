@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
 import { resolveProvider } from '@/lib/ai/provider-resolver';
 import { generateCompletion } from '@/lib/ai/generation';
+import { calculateSimilarity } from '@/lib/utils/string-similarity';
 import type { ModelConfig, UserApiKeys } from '@/types/database';
 import type { RetestRequest, RetestResponse } from '@/types/api';
 import { retestSchema } from '@/lib/validation/schemas';
@@ -10,44 +11,6 @@ import { z } from 'zod';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
-}
-
-// Calculate similarity between two strings using Levenshtein distance
-// Returns 0 (completely different) to 1 (identical)
-function calculateSimilarity(str1: string, str2: string): number {
-  if (str1 === str2) return 1.0;
-  if (!str1 || !str2) return 0.0;
-
-  // Calculate Levenshtein distance (minimum edits needed to transform str1 into str2)
-  const len1 = str1.length;
-  const len2 = str2.length;
-  const matrix: number[][] = [];
-
-  // Initialize matrix
-  for (let i = 0; i <= len1; i++) {
-    matrix[i] = [i];
-  }
-  for (let j = 0; j <= len2; j++) {
-    matrix[0][j] = j;
-  }
-
-  // Fill matrix
-  for (let i = 1; i <= len1; i++) {
-    for (let j = 1; j <= len2; j++) {
-      const cost = str1[i - 1] === str2[j - 1] ? 0 : 1;
-      matrix[i][j] = Math.min(
-        matrix[i - 1][j] + 1,      // deletion
-        matrix[i][j - 1] + 1,      // insertion
-        matrix[i - 1][j - 1] + cost // substitution
-      );
-    }
-  }
-
-  const distance = matrix[len1][len2];
-  const maxLen = Math.max(len1, len2);
-
-  // Convert distance to similarity (0 = different, 1 = identical)
-  return 1 - (distance / maxLen);
 }
 
 export async function POST(request: Request, { params }: RouteParams) {

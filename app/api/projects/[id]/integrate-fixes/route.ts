@@ -2,15 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
 import { generateCompletion } from '@/lib/ai/generation';
-
-// Configuration for fix integration model
-// Uses system API key to ensure consistent, high-quality prompt improvements
-const FIX_INTEGRATION_MODEL_CONFIG = {
-  model: 'gpt-4-turbo' as const,
-  temperature: 0.3,
-  // Future: could make this configurable to support other providers
-  provider: 'openai' as const,
-};
+import { SYSTEM_MODEL_CONFIG } from '@/lib/ai/system-model-config';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -63,9 +55,9 @@ export async function POST(request: Request, { params }: RouteParams) {
     // Use GPT-4 to intelligently integrate all fixes into the prompt
     // Note: Fix integration uses system API key (not user's) to ensure consistent quality
     const result = await generateCompletion({
-      provider: FIX_INTEGRATION_MODEL_CONFIG.provider,
-      model: FIX_INTEGRATION_MODEL_CONFIG.model,
-      temperature: FIX_INTEGRATION_MODEL_CONFIG.temperature,
+      provider: SYSTEM_MODEL_CONFIG.provider,
+      model: SYSTEM_MODEL_CONFIG.model,
+      temperature: SYSTEM_MODEL_CONFIG.temperature,
       systemPrompt: `You are an expert at improving system prompts for LLMs. Your task is to integrate multiple suggested fixes into an existing system prompt in a coherent, natural way.
 
 IMPORTANT GUIDELINES:
