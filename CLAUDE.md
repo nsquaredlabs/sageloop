@@ -225,6 +225,7 @@ lib/
 ├── ai/
 │   ├── provider-resolver.ts   # AI provider selection logic
 │   ├── generation.ts           # Unified AI generation service
+│   ├── system-model-config.ts  # System model configuration (extractions, insights, fixes)
 │   └── types.ts                # AI-related types
 ├── api/
 │   ├── errors.ts               # Standardized API error classes
@@ -355,6 +356,8 @@ export async function POST(request: Request) {
 
 ### AI Provider Selection
 
+**For user-configured models** (generating outputs based on user's project settings):
+
 Use the provider resolver for consistent AI model selection:
 
 ```typescript
@@ -387,6 +390,27 @@ const { text, usage } = await generateCompletion({
   apiKey,
 });
 ```
+
+**For system operations** (extractions, insights, applying fixes):
+
+Use the centralized system model configuration:
+
+```typescript
+import { SYSTEM_MODEL_CONFIG } from '@/lib/ai/system-model-config';
+import { generateCompletion } from '@/lib/ai/generation';
+
+// All system operations use the same model/provider
+const result = await generateCompletion({
+  provider: SYSTEM_MODEL_CONFIG.provider,
+  model: SYSTEM_MODEL_CONFIG.model,
+  temperature: SYSTEM_MODEL_CONFIG.temperature,
+  systemPrompt: 'You are an expert at...',
+  userMessage: 'Analyze this data...',
+  apiKey: undefined, // Uses system API key from env
+});
+```
+
+**To change the system model**: Edit [lib/ai/system-model-config.ts](lib/ai/system-model-config.ts) once and it applies to all system operations (extractions, fix integration, future insights).
 
 ### Utility Functions
 

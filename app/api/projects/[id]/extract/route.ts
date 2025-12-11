@@ -2,17 +2,9 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
 import { generateCompletion } from '@/lib/ai/generation';
+import { SYSTEM_MODEL_CONFIG } from '@/lib/ai/system-model-config';
 import type { ModelConfig, ExtractionCriteria } from '@/types/database';
 import type { ExtractResponse } from '@/types/api';
-
-// Configuration for pattern extraction model
-// This is kept separate from user's configured model to ensure consistent, high-quality analysis
-const EXTRACTION_MODEL_CONFIG = {
-  model: 'gpt-4-turbo' as const,
-  temperature: 0.3,
-  // Future: could make this configurable to support other providers (Anthropic, etc.)
-  provider: 'openai' as const,
-};
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -158,9 +150,9 @@ export async function POST(request: Request, { params }: RouteParams) {
     // Call OpenAI to analyze patterns with focus on failure clustering
     // Note: Pattern extraction uses system API key (not user's) to ensure consistent analysis
     const result = await generateCompletion({
-      provider: EXTRACTION_MODEL_CONFIG.provider,
-      model: EXTRACTION_MODEL_CONFIG.model,
-      temperature: EXTRACTION_MODEL_CONFIG.temperature,
+      provider: SYSTEM_MODEL_CONFIG.provider,
+      model: SYSTEM_MODEL_CONFIG.model,
+      temperature: SYSTEM_MODEL_CONFIG.temperature,
       systemPrompt: `You are an expert at analyzing AI output quality patterns and diagnosing failures.
 
 NOTE: You are analyzing ALL ${ratedOutputs.length} rated outputs for the current prompt version. This gives you a complete picture of the prompt's overall performance.

@@ -63,10 +63,12 @@ if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
 }
 
-// Optional environment variables (not required for tests, but nice to have)
+// Optional environment variables
+// Note: For system model config tests, use real API keys from .env.local if available
+// Otherwise, fall back to test placeholders for other tests
 if (!process.env.OPENAI_API_KEY) {
-  process.env.OPENAI_API_KEY = 'test-openai-key';
+  process.env.OPENAI_API_KEY = 'test-openai-key-placeholder';
 }
 if (!process.env.ANTHROPIC_API_KEY) {
-  process.env.ANTHROPIC_API_KEY = 'test-anthropic-key';
+  process.env.ANTHROPIC_API_KEY = 'test-anthropic-key-placeholder';
 }
