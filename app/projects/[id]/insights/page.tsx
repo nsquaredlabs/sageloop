@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { interpretSuccessRate, interpretConfidence } from '@/lib/metrics';
 import { parseId } from '@/lib/utils';
 import { ApplyFixButton } from '@/components/apply-fix-button';
+import type { ExtractionCriteria, ModelConfig } from '@/types/database';
 
 // Force dynamic rendering to ensure fresh data after pattern extraction
 export const dynamic = 'force-dynamic';
@@ -106,7 +107,7 @@ export default async function InsightsPage({ params, searchParams }: InsightsPag
     );
   }
 
-  const criteria = extraction.criteria as any;
+  const criteria = extraction.criteria as unknown as ExtractionCriteria;
   const successRate = metric?.success_rate || 0;
   const confidenceScore = extraction.confidence_score || 0;
 
@@ -232,7 +233,7 @@ export default async function InsightsPage({ params, searchParams }: InsightsPag
                 </div>
                 <ApplyFixButton
                   projectId={id.toString()}
-                  currentPrompt={(project.model_config as any).system_prompt || ''}
+                  currentPrompt={(project.model_config as unknown as ModelConfig).system_prompt || ''}
                   clusters={criteria.failure_analysis.clusters}
                   totalScenarios={totalScenarios || 0}
                 />

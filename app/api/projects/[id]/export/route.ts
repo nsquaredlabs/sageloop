@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
+import type { ModelConfig, ExtractionCriteria } from '@/types/database';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -103,8 +104,8 @@ export async function GET(request: Request, { params }: RouteParams) {
       .in('scenario_id', scenarioIds)
       .not('ratings', 'is', null);
 
-    const modelConfig = project.model_config as any;
-    const criteria = extraction.criteria as any;
+    const modelConfig = project.model_config as unknown as ModelConfig;
+    const criteria = extraction.criteria as unknown as ExtractionCriteria;
 
     // Filter examples by star ratings in application code
     const filteredGolden = (goldenExamples || [])

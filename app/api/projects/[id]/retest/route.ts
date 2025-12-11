@@ -3,6 +3,10 @@ import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
 import { resolveProvider } from '@/lib/ai/provider-resolver';
 import { generateCompletion } from '@/lib/ai/generation';
+import type { ModelConfig, UserApiKeys } from '@/types/database';
+import type { RetestRequest, RetestResponse } from '@/types/api';
+import { retestSchema } from '@/lib/validation/schemas';
+import { z } from 'zod';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -60,22 +64,22 @@ export async function POST(request: Request, { params }: RouteParams) {
 
     const { id: projectIdString } = await params;
     const projectId = parseId(projectIdString);
+
+    // Validate request body with Zod
     const body = await request.json();
-    const { scenarioIds, newSystemPrompt, improvementNote } = body;
+    const validationResult = retestSchema.safeParse(body);
 
-    if (!scenarioIds || !Array.isArray(scenarioIds) || scenarioIds.length === 0) {
+    if (!validationResult.success) {
       return NextResponse.json(
-        { error: 'scenarioIds array is required' },
+        {
+          error: 'Invalid request data',
+          details: validationResult.error.issues
+        },
         { status: 400 }
       );
     }
 
-    if (!newSystemPrompt || typeof newSystemPrompt !== 'string') {
-      return NextResponse.json(
-        { error: 'newSystemPrompt is required' },
-        { status: 400 }
-      );
-    }
+    const { scenarioIds, newSystemPrompt, improvementNote } = validationResult.data;
 
     // Fetch project details (RLS ensures user has access)
     const { data: project, error: projectError } = await supabase
@@ -91,7 +95,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
     }
 
-    const modelConfig = project.model_config as any;
+    const modelConfig = project.model_config as unknown as ModelConfig;
     const oldSystemPrompt = modelConfig.system_prompt || '';
     const currentVersion = project.prompt_version || 1;
     const newVersion = currentVersion + 1;
@@ -99,7 +103,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     // Fetch workbench API keys
     const { data: apiKeys, error: keysError } = await supabase
       .rpc('get_workbench_api_keys', { workbench_uuid: project.workbench_id ?? '' }) as {
-        data: { openai?: string; anthropic?: string } | null;
+        data: UserApiKeys | null;
         error: any;
       };
 
@@ -328,7 +332,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     console.log('Rating carryforward complete');
 
 
-    return NextResponse.json({
+    const response: RetestResponse = {
       success: true,
       version: newVersion,
       outputs: newOutputs,
@@ -337,7 +341,9 @@ export async function POST(request: Request, { params }: RouteParams) {
         old: oldSystemPrompt,
         new: newSystemPrompt,
       },
-    });
+    };
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error('API error:', error);
     return NextResponse.json(

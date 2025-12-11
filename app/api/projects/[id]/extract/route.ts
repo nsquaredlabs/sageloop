@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
 import { generateCompletion } from '@/lib/ai/generation';
+import type { ModelConfig, ExtractionCriteria } from '@/types/database';
+import type { ExtractResponse } from '@/types/api';
 
 // Configuration for pattern extraction model
 // This is kept separate from user's configured model to ensure consistent, high-quality analysis
@@ -46,7 +48,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     // Get the system prompt from project config
-    const modelConfig = project.model_config as { system_prompt?: string };
+    const modelConfig = project.model_config as unknown as ModelConfig;
     const systemPrompt = modelConfig.system_prompt || '';
 
     // Get the current prompt version
@@ -262,12 +264,20 @@ Focus on clustering failures and providing concrete fixes.`,
       console.error('Metric error:', metricError);
     }
 
-    return NextResponse.json({
+    const response: ExtractResponse = {
       success: true,
-      extraction,
-      metric,
+      extraction: {
+        ...extraction,
+        criteria: extraction.criteria as unknown as ExtractionCriteria,
+      },
+      metric: metric ? {
+        ...metric,
+        criteria_breakdown: metric.criteria_breakdown as unknown as Record<string, string> | null,
+      } : null,
       analyzed_outputs: totalOutputs,
-    });
+    };
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error('API error:', error);
     return NextResponse.json(
