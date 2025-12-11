@@ -52,5 +52,21 @@ vi.mock('next/headers', async () => {
 });
 
 // Mock environment variables for tests
-process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321';
-process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'test-anon-key';
+// These must be set before importing the env module to avoid validation errors
+if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://localhost:54321';
+}
+if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key';
+}
+if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
+}
+
+// Optional environment variables (not required for tests, but nice to have)
+if (!process.env.OPENAI_API_KEY) {
+  process.env.OPENAI_API_KEY = 'test-openai-key';
+}
+if (!process.env.ANTHROPIC_API_KEY) {
+  process.env.ANTHROPIC_API_KEY = 'test-anthropic-key';
+}
