@@ -39,3 +39,7 @@ next-env.d.ts
 
 # project docs
 /docs
+
+# claude
+/.claude
+CLAUDE.md
