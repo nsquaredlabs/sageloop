@@ -108,17 +108,33 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
     }
 
-    // Filter to only outputs that have new ratings
-    const ratedOutputs = outputs.filter((output: any) =>
+    // Filter to only outputs that have ratings
+    const outputsWithRatings = outputs.filter((output: any) =>
       output.ratings && output.ratings.length > 0
     );
 
-    if (ratedOutputs.length === 0) {
+    if (outputsWithRatings.length === 0) {
       return NextResponse.json(
         { error: 'No rated outputs found for the current prompt version. Please rate some outputs before analyzing patterns.' },
         { status: 400 }
       );
     }
+
+    // Deduplicate to get only the most recent output per scenario
+    // This ensures we analyze each scenario once with its latest result
+    const scenarioToLatestOutput = new Map<number, any>();
+
+    outputsWithRatings.forEach((output: any) => {
+      const scenarioId = output.scenario_id;
+      const existingOutput = scenarioToLatestOutput.get(scenarioId);
+
+      // Keep the output with the most recent generated_at timestamp
+      if (!existingOutput || new Date(output.generated_at) > new Date(existingOutput.generated_at)) {
+        scenarioToLatestOutput.set(scenarioId, output);
+      }
+    });
+
+    const ratedOutputs = Array.from(scenarioToLatestOutput.values());
 
     // Prepare data for AI analysis with scenario IDs
     const analysisData = ratedOutputs.map((output: any) => {
