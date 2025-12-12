@@ -1,6 +1,6 @@
 # Sageloop
 
-**AI Evals for PMs** - A behavioral design tool for AI products
+**Intelligent Prompt Engineering** - A platform built for PMs who need to rapidly build and test AI prompts
 
 ## Overview
 
