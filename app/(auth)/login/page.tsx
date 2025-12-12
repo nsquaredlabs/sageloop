@@ -6,7 +6,7 @@ export default function LoginPage() {
       <div className="text-center">
         <h1 className="text-3xl font-bold">Welcome back</h1>
         <p className="text-muted-foreground mt-2">
-          Sign in to your Tellah account
+          Sign in to your Sageloop account
         </p>
       </div>
       <LoginForm />

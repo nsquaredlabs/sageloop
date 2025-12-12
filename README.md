@@ -1,10 +1,10 @@
-# Tellah
+# Sageloop
 
 **AI Evals for PMs** - A behavioral design tool for AI products
 
 ## Overview
 
-Tellah enables Product Managers to define what "good" AI behavior looks like through examples and ratings, rather than code. It creates a shared artifact between PMs and engineers for AI product quality.
+Sageloop enables Product Managers to define what "good" AI behavior looks like through examples and ratings, rather than code. It creates a shared artifact between PMs and engineers for AI product quality.
 
 **The Problem:** For AI products, there's no equivalent to Figma mockups that define acceptable behavior for probabilistic outputs. PMs write vague requirements, engineers write prompts, and no one can agree on what "right" looks like. We solve this.
 
@@ -116,7 +116,7 @@ View your local database at [http://127.0.0.1:54323](http://127.0.0.1:54323)
 
 ## Testing
 
-Tellah uses a comprehensive testing strategy to ensure code quality and prevent regressions:
+Sageloop uses a comprehensive testing strategy to ensure code quality and prevent regressions:
 
 ### Test Suite Structure
 

@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Toaster } from 'sonner';
 
 export const metadata: Metadata = {
-  title: "Tellah - Intelligent Prompt Engineering",
+  title: "Sageloop - Intelligent Prompt Engineering",
   description: "A platform built for PMs who need to rapidly build and test AI prompts",
 };
 
@@ -37,7 +37,7 @@ export default async function RootLayout({
           <nav className="border-b bg-background sticky top-0 z-50">
             <div className="flex justify-between items-center h-16 px-6">
               <Link href="/projects" className="hover:opacity-80 transition-opacity">
-                <h1 className="text-3xl font-bold tracking-tight">Tellah</h1>
+                <h1 className="text-3xl font-bold tracking-tight">Sageloop</h1>
               </Link>
               <UserMenu email={user.email!} workbenchId={workbenchId} />
             </div>

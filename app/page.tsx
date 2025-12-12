@@ -5,7 +5,7 @@ export default function Home() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
       <div className="text-center px-4">
         <h1 className="text-5xl font-bold mb-4 text-gray-900 dark:text-white">
-          Tellah
+          Sageloop
         </h1>
         <p className="text-2xl text-gray-600 dark:text-gray-400 mb-2">
           Intelligent Prompt Engineering
