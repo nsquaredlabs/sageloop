@@ -2,9 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project: Tellah
+## Project: Sageloop
 
-Tellah is a behavioral design tool for AI products - "Figma for AI Evals." It enables Product Managers to define what "good" AI behavior looks like through examples and ratings, rather than code.
+Sageloop is a behavioral design tool for AI products - "Figma for AI Evals." It enables Product Managers to define what "good" AI behavior looks like through examples and ratings, rather than code.
 
 ### The Problem We Solve
 
@@ -12,7 +12,7 @@ In traditional product development, designers create mockups in Figma that serve
 
 ### Our Solution
 
-Tellah creates a shared artifact for AI behavior quality:
+Sageloop creates a shared artifact for AI behavior quality:
 - PMs provide test scenarios and rate AI outputs
 - The system extracts behavioral patterns from PM ratings (length, tone, structure, content)
 - Both PM and engineer see real-time success metrics as prompts evolve
@@ -112,7 +112,7 @@ const { count } = await supabase
 
 ## Authentication & Authorization
 
-Tellah uses Supabase Auth with Row Level Security (RLS) for data protection.
+Sageloop uses Supabase Auth with Row Level Security (RLS) for data protection.
 
 ### Authentication Patterns
 
