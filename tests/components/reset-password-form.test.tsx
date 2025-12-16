@@ -310,6 +310,10 @@ describe('ResetPasswordForm - Password Update', () => {
   });
 
   it('should handle API errors', async () => {
+    // Explicitly clear mocks to prevent bleeding from previous test
+    mockPush.mockClear();
+    mockRefresh.mockClear();
+
     const errorMessage = 'Failed to update password';
     mockUpdateUser.mockResolvedValue({
       error: { message: errorMessage },
