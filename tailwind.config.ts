@@ -27,6 +27,7 @@ const config = {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          hover: "239 84% 60%", // indigo-600 for hover states
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
@@ -43,6 +44,7 @@ const config = {
         accent: {
           DEFAULT: "hsl(var(--accent))",
           foreground: "hsl(var(--accent-foreground))",
+          hover: "239 84% 60%", // indigo-600 for hover states
         },
         popover: {
           DEFAULT: "hsl(var(--popover))",
