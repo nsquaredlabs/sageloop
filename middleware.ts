@@ -36,7 +36,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Redirect unauthenticated users to login
-  const authPaths = ['/login', '/signup'];
+  const authPaths = ['/login', '/signup', '/forgot-password', '/reset-password'];
   const isAuthPath = authPaths.some(path => request.nextUrl.pathname.startsWith(path));
 
   if (!user && !isAuthPath) {

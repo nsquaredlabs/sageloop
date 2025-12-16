@@ -1,19 +1,19 @@
-import { LoginForm } from '@/components/auth/login-form';
+import { ResetPasswordForm } from '@/components/auth/reset-password-form';
 import { Logo } from '@/components/ui/logo';
 
-export default function LoginPage() {
+export default function ResetPasswordPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col items-center space-y-4">
         <Logo size="lg" />
         <div className="text-center">
-          <h1 className="text-3xl font-bold">Welcome back</h1>
+          <h1 className="text-3xl font-bold">Set new password</h1>
           <p className="text-muted-foreground mt-2">
-            Sign in to your Sageloop account
+            Choose a strong password for your account
           </p>
         </div>
       </div>
-      <LoginForm />
+      <ResetPasswordForm />
     </div>
   );
 }

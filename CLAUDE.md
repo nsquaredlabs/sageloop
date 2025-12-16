@@ -604,3 +604,274 @@ Before considering code complete:
 - [ ] API routes use standardized error handling
 - [ ] Complex logic has tests
 - [ ] Code follows existing patterns in this document
+
+## Design System
+
+Sageloop follows a modern design system inspired by Linear, Vercel, and Stripe. Full specifications are in `docs/DESIGN_SYSTEM.md`.
+
+### Core Principles
+
+1. **High Contrast** - Almost black (#0a0a0a) on pure white for readability
+2. **Single Accent Color** - Indigo (#6366f1) for primary actions, used sparingly
+3. **Monochrome Base** - True black/white, minimal grays
+4. **Generous Spacing** - Let content breathe
+5. **Clean Typography** - Regular (400) and Semibold (600) only
+
+### Color Usage
+
+**Always use semantic color tokens** - never hardcode colors.
+
+#### Correct Usage ✅
+
+```tsx
+// Backgrounds
+<div className="bg-background">            {/* White */}
+<div className="bg-secondary">             {/* Light gray #f5f5f5 */}
+<div className="bg-muted">                 {/* Light gray #f5f5f5 */}
+
+// Text
+<p className="text-foreground">            {/* Almost black #0a0a0a */}
+<p className="text-muted-foreground">      {/* Gray-500 #6b7280 */}
+
+// Primary Actions (Indigo)
+<Button>Save</Button>                       {/* Uses bg-primary automatically */}
+<Button variant="default">Save</Button>    {/* Explicit primary */}
+<a className="text-primary">Link</a>       {/* Indigo link */}
+
+// Secondary Actions
+<Button variant="outline">Cancel</Button>  {/* Border with bg-background */}
+<Button variant="secondary">Option</Button>{/* Light gray bg */}
+<Button variant="ghost">Menu</Button>      {/* Transparent with hover */}
+
+// Borders
+<div className="border border-border">     {/* Gray-200 #e5e7eb */}
+<Input />                                  {/* Uses border-input */}
+
+// Focus States
+<Input className="focus:ring-primary" />   {/* Indigo focus ring */}
+```
+
+#### Incorrect Usage ❌
+
+```tsx
+// Don't hardcode colors
+<div className="bg-blue-600">              {/* ❌ Use bg-primary */}
+<div className="bg-gray-50">               {/* ❌ Use bg-background or bg-secondary */}
+<p className="text-gray-900">              {/* ❌ Use text-foreground */}
+<button className="bg-indigo-500">         {/* ❌ Use bg-primary */}
+
+// Don't use multiple accent colors
+<Button className="bg-purple-600">         {/* ❌ Stick to indigo */}
+<a className="text-blue-500">              {/* ❌ Use text-primary for indigo */}
+```
+
+### When to Use Each Color
+
+| Token | Usage | Example |
+|-------|-------|---------|
+| `primary` | Primary CTA buttons, links, focus states | "Save", "Create", "Generate" buttons |
+| `secondary` | Secondary backgrounds, less emphasis | Disabled states, secondary sections |
+| `muted` | Backgrounds for less important content | Code blocks, secondary cards |
+| `muted-foreground` | Secondary text, captions, metadata | Helper text, timestamps, labels |
+| `border` | Dividers, card borders, input borders | Card outlines, section separators |
+| `destructive` | Dangerous actions, errors | "Delete", "Remove" buttons |
+
+### Logo Component
+
+Use the Logo component for consistent branding:
+
+```tsx
+import { Logo } from '@/components/ui/logo';
+
+// In navigation (large)
+<Logo size="lg" />
+
+// In auth pages (large, centered)
+<div className="flex flex-col items-center">
+  <Logo size="lg" />
+</div>
+
+// Icon only (no wordmark)
+<Logo showWordmark={false} />
+
+// Small size for secondary locations
+<Logo size="sm" />
+```
+
+**Logo Specifications**:
+- Triangle inside circle design
+- Dark container (gray-900) with white logo
+- Always paired with "Sageloop" wordmark by default
+- Three sizes: sm (16px), md (24px), lg (32px)
+- Automatically inverts colors in dark mode
+
+### Utility Classes
+
+The design system provides utility classes for common patterns:
+
+```tsx
+// Gradient accent (indigo to purple)
+<div className="gradient-accent">
+  {/* Indigo-purple gradient background */}
+</div>
+
+// Gradient text
+<h1 className="gradient-text">
+  {/* Text with indigo-purple gradient */}
+</h1>
+
+// Text balance (better headline wrapping)
+<h1 className="text-balance">
+  Long headline that wraps nicely
+</h1>
+```
+
+### Typography Patterns
+
+Use limited font weights for clean hierarchy:
+
+```tsx
+// Headlines - Semibold (600)
+<h1 className="text-5xl font-bold">       {/* Large headlines */}
+<h2 className="text-3xl font-bold">       {/* Section headlines */}
+<h3 className="text-2xl font-semibold">   {/* Card titles */}
+
+// Body - Regular (400)
+<p className="text-base">                 {/* Default body text */}
+<p className="text-sm text-muted-foreground"> {/* Captions */}
+
+// Avoid
+<p className="font-medium">               {/* ❌ Not part of design system */}
+<p className="font-light">                {/* ❌ Not part of design system */}
+```
+
+### Button Patterns
+
+Buttons automatically use the design system colors:
+
+```tsx
+// Primary action (indigo)
+<Button>Save Changes</Button>
+
+// Secondary action (outlined)
+<Button variant="outline">Cancel</Button>
+
+// Less emphasis (ghost)
+<Button variant="ghost">Options</Button>
+
+// Dangerous action (red)
+<Button variant="destructive">Delete</Button>
+
+// Secondary background
+<Button variant="secondary">Alternative</Button>
+
+// With hover states
+<Button className="hover:bg-primary/90">
+  {/* Primary with opacity on hover */}
+</Button>
+```
+
+### Card Patterns
+
+Cards use semantic tokens automatically:
+
+```tsx
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+
+<Card>                        {/* White bg, gray border */}
+  <CardHeader>
+    <CardTitle>Title</CardTitle>    {/* Foreground color */}
+    <CardDescription>              {/* Muted foreground */}
+      Description
+    </CardDescription>
+  </CardHeader>
+  <CardContent>
+    {/* Content with proper spacing */}
+  </CardContent>
+</Card>
+```
+
+### Spacing Patterns
+
+Follow consistent spacing:
+
+```tsx
+// Section spacing
+<section className="py-20">        {/* 80px vertical */}
+<section className="py-24">        {/* 96px vertical */}
+
+// Card spacing
+<Card className="p-6">             {/* 24px padding */}
+<Card className="p-8">             {/* 32px padding */}
+
+// Element spacing
+<div className="space-y-4">        {/* 16px between children */}
+<div className="space-y-6">        {/* 24px between children */}
+<div className="space-y-8">        {/* 32px between children */}
+
+// Container padding
+<div className="px-6 sm:px-8 lg:px-12">  {/* Responsive padding */}
+```
+
+### Border Radius
+
+Use consistent border radius:
+
+```tsx
+<div className="rounded-lg">      {/* 8px - small elements */}
+<div className="rounded-xl">      {/* 12px - medium elements */}
+<div className="rounded-2xl">     {/* 16px - large cards */}
+<div className="rounded-full">    {/* Full - avatars, badges */}
+```
+
+### Dark Mode
+
+Dark mode is supported via the `.dark` class. Colors automatically invert:
+
+```tsx
+// These automatically work in dark mode
+<div className="bg-background text-foreground">
+  {/* White bg + black text → Black bg + white text */}
+</div>
+
+<Logo />  {/* Gray-900 → White container automatically */}
+
+// Explicit dark mode variants (if needed)
+<div className="bg-white dark:bg-gray-900">
+  {/* Manual dark mode control */}
+</div>
+```
+
+### Design System Checklist
+
+When creating new components:
+
+- [ ] Use semantic color tokens (no hardcoded colors)
+- [ ] Use only font-weight 400 (regular) or 600 (semibold)
+- [ ] Use consistent spacing (multiples of 4px)
+- [ ] Use consistent border radius (lg, xl, 2xl)
+- [ ] Test in both light and dark mode
+- [ ] Use Logo component for branding
+- [ ] Follow button/card patterns from examples
+
+### Migration from Old Colors
+
+If you encounter old color patterns:
+
+| Old (Before) | New (Design System) |
+|-------------|---------------------|
+| `bg-blue-600` | `bg-primary` |
+| `text-blue-600` | `text-primary` |
+| `bg-gray-50` | `bg-background` or `bg-secondary` |
+| `text-gray-900` | `text-foreground` |
+| `text-gray-600` | `text-muted-foreground` |
+| `border-gray-200` | `border-border` |
+| Hardcoded "Sageloop" text | `<Logo size="lg" />` |
+
+### Resources
+
+- **Full Design System**: `docs/DESIGN_SYSTEM.md`
+- **Implementation Notes**: Color HSL values, utilities
+- **Sprint Summaries**: `docs/design-sprint-0-summary.md`, `docs/design-sprint-1-summary.md`
+- **Color Variables**: `app/globals.css` (CSS variables)
+- **Tailwind Config**: `tailwind.config.ts` (color tokens)

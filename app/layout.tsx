@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { createServerClient } from '@/lib/supabase';
 import { UserMenu } from '@/components/auth/user-menu';
+import { Logo } from '@/components/ui/logo';
 import Link from 'next/link';
 import { Toaster } from 'sonner';
 
@@ -37,7 +38,7 @@ export default async function RootLayout({
           <nav className="border-b bg-background sticky top-0 z-50">
             <div className="flex justify-between items-center h-16 px-6">
               <Link href="/projects" className="hover:opacity-80 transition-opacity">
-                <h1 className="text-3xl font-bold tracking-tight">Sageloop</h1>
+                <Logo size="lg" />
               </Link>
               <UserMenu email={user.email!} workbenchId={workbenchId} />
             </div>
