@@ -302,6 +302,11 @@ describe('ResetPasswordForm - Password Update', () => {
       expect(confirmInput).toBeDisabled();
       expect(submitButton).toBeDisabled();
     });
+
+    // Wait for the async operation to complete to avoid bleeding into next test
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/projects');
+    });
   });
 
   it('should handle API errors', async () => {
