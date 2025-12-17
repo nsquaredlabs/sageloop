@@ -52,43 +52,43 @@ insert into subscription_plans (id, name, display_name, description, price_month
     'pro',
     'pro',
     'Pro',
-    'For individuals and small teams building production AI features',
-    4900, -- $49/month
-    2000,  -- 2000 standard outputs
-    500,   -- 500 premium outputs
+    'For individuals building production AI features',
+    2000, -- $20/month
+    1000,  -- 1000 standard outputs
+    200,   -- 200 premium outputs
     true,  -- Allow premium models
     false,
     false, -- Coming soon (Phase 2)
     1,
-    '["2,000 standard outputs", "500 premium outputs (GPT-5.1, Claude)", "Priority support", "Export test suites"]'::jsonb
+    '["1,000 standard outputs", "200 premium outputs (GPT-5.1, Claude)", "Priority support", "Export test suites"]'::jsonb
   ),
   (
     'team',
     'team',
     'Team',
     'For teams collaborating on AI product quality',
-    9900, -- $99/month
-    5000,  -- 5000 standard outputs
-    1500,  -- 1500 premium outputs
+    4900, -- $49/month
+    3000,  -- 3000 standard outputs
+    750,   -- 750 premium outputs
     true,
     true,  -- Team collaboration enabled
     false, -- Coming soon (Phase 2)
     2,
-    '["5,000 standard outputs", "1,500 premium outputs", "Team collaboration", "Advanced analytics", "SSO support"]'::jsonb
+    '["3,000 standard outputs", "750 premium outputs", "Team collaboration", "Advanced analytics", "Priority support"]'::jsonb
   ),
   (
     'enterprise',
     'enterprise',
     'Enterprise',
     'Custom limits and dedicated support for large organizations',
-    49900, -- $499/month
-    20000, -- 20,000 standard outputs
-    5000,  -- 5,000 premium outputs
+    19900, -- $199/month
+    10000, -- 10,000 standard outputs
+    2500,  -- 2,500 premium outputs
     true,
     true,
     false, -- Coming soon (Phase 2)
     3,
-    '["20,000+ outputs", "All premium models", "Dedicated support", "Custom integrations", "SLA guarantees"]'::jsonb
+    '["10,000+ outputs", "All premium models", "Dedicated support", "Custom integrations", "SLA guarantees"]'::jsonb
   );
 
 -- 2. Subscriptions Table

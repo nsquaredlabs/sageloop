@@ -44,16 +44,16 @@ insert into subscription_plans (
     'pro',
     'pro',
     'Pro',
-    'For individual developers and small teams',
-    4900, -- $49/month
-    2000, -- 2,000 standard outputs/month (GPT-5-mini)
-    500, -- 500 premium outputs/month (GPT-5.1 or Claude Sonnet 4.5)
+    'For individuals building production AI features',
+    2000, -- $20/month
+    1000, -- 1,000 standard outputs/month (GPT-5-mini)
+    200, -- 200 premium outputs/month (GPT-5.1 or Claude Sonnet 4.5)
     true, -- Access to premium models
     false, -- Coming soon (Phase 2)
     jsonb_build_array(
       'Unlimited projects',
-      '2,000 standard outputs/month (GPT-5-mini)',
-      '500 premium outputs/month (GPT-5.1 or Claude Sonnet 4.5)',
+      '1,000 standard outputs/month (GPT-5-mini)',
+      '200 premium outputs/month (GPT-5.1 or Claude Sonnet 4.5)',
       'Multi-provider support',
       'Smart rating carry-forward',
       'Keyboard shortcuts',
@@ -65,16 +65,16 @@ insert into subscription_plans (
     'team',
     'team',
     'Team',
-    'For teams collaborating on AI products',
-    9900, -- $99/month
-    5000, -- 5,000 standard outputs/month
-    1500, -- 1,500 premium outputs/month
+    'For teams collaborating on AI product quality',
+    4900, -- $49/month
+    3000, -- 3,000 standard outputs/month
+    750, -- 750 premium outputs/month
     true, -- Access to premium models
     false, -- Coming soon (Phase 2)
     jsonb_build_array(
       'Everything in Pro',
-      '5,000 standard outputs/month',
-      '1,500 premium outputs/month',
+      '3,000 standard outputs/month',
+      '750 premium outputs/month',
       'Team collaboration (coming soon)',
       'Prompt version history',
       'Failure clustering',
@@ -88,15 +88,15 @@ insert into subscription_plans (
     'enterprise',
     'Enterprise',
     'For large organizations with custom needs',
-    49900, -- $499/month (starting price)
-    20000, -- 20,000 standard outputs/month
-    5000, -- 5,000 premium outputs/month
+    19900, -- $199/month
+    10000, -- 10,000 standard outputs/month
+    2500, -- 2,500 premium outputs/month
     true, -- Access to all models
     false, -- Coming soon (Phase 2)
     jsonb_build_array(
       'Everything in Team',
-      '20,000+ standard outputs/month',
-      '5,000+ premium outputs/month',
+      '10,000+ standard outputs/month',
+      '2,500+ premium outputs/month',
       'Access to all models (GPT-5.2, Claude Opus 4.5, o3)',
       'Bring Your Own Keys (unlimited with your API keys)',
       'SSO / SAML authentication',
