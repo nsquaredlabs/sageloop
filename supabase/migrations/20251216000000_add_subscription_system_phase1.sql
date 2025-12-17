@@ -32,6 +32,65 @@ create table subscription_plans (
   created_at timestamp with time zone default now()
 );
 
+-- Insert subscription plans (Phase 1: Only free is available)
+insert into subscription_plans (id, name, display_name, description, price_monthly_cents, standard_outputs_limit, premium_outputs_limit, allow_premium_models, allow_team_collaboration, is_available, sort_order, features) values
+  (
+    'free',
+    'free',
+    'Free',
+    'Perfect for getting started with AI behavior design',
+    0,
+    100,  -- 100 standard outputs (gpt-5-nano)
+    0,    -- No premium outputs
+    false,
+    false,
+    true, -- Available
+    0,
+    '["100 AI outputs per month", "Access to GPT-5-nano", "All core features", "Community support"]'::jsonb
+  ),
+  (
+    'pro',
+    'pro',
+    'Pro',
+    'For individuals and small teams building production AI features',
+    4900, -- $49/month
+    2000,  -- 2000 standard outputs
+    500,   -- 500 premium outputs
+    true,  -- Allow premium models
+    false,
+    false, -- Coming soon (Phase 2)
+    1,
+    '["2,000 standard outputs", "500 premium outputs (GPT-5.1, Claude)", "Priority support", "Export test suites"]'::jsonb
+  ),
+  (
+    'team',
+    'team',
+    'Team',
+    'For teams collaborating on AI product quality',
+    9900, -- $99/month
+    5000,  -- 5000 standard outputs
+    1500,  -- 1500 premium outputs
+    true,
+    true,  -- Team collaboration enabled
+    false, -- Coming soon (Phase 2)
+    2,
+    '["5,000 standard outputs", "1,500 premium outputs", "Team collaboration", "Advanced analytics", "SSO support"]'::jsonb
+  ),
+  (
+    'enterprise',
+    'enterprise',
+    'Enterprise',
+    'Custom limits and dedicated support for large organizations',
+    49900, -- $499/month
+    20000, -- 20,000 standard outputs
+    5000,  -- 5,000 premium outputs
+    true,
+    true,
+    false, -- Coming soon (Phase 2)
+    3,
+    '["20,000+ outputs", "All premium models", "Dedicated support", "Custom integrations", "SLA guarantees"]'::jsonb
+  );
+
 -- 2. Subscriptions Table
 -- Stores active subscriptions for each workbench
 -- Phase 1: Simplified without Stripe fields
