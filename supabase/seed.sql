@@ -1,6 +1,127 @@
 -- Seed data for Tellah
 -- Complete test environment with user, project, rated outputs ready for testing iterative workflow
 
+-- =====================================================
+-- SUBSCRIPTION PLANS (must come first!)
+-- =====================================================
+-- Insert subscription plans matching marketing PRD
+insert into subscription_plans (
+  id,
+  name,
+  display_name,
+  description,
+  price_monthly_cents,
+  standard_outputs_limit,
+  premium_outputs_limit,
+  allow_premium_models,
+  is_available,
+  features,
+  sort_order
+) values
+  (
+    'free',
+    'free',
+    'Free',
+    'Perfect for trying out Sageloop',
+    0, -- $0/month
+    100, -- 100 outputs/month (standard tier models)
+    0, -- No premium outputs
+    false, -- GPT-5-nano only
+    true, -- Available now
+    jsonb_build_array(
+      '1 project',
+      '100 outputs/month',
+      'GPT-5-nano model',
+      'Scenario management',
+      'Rating & feedback',
+      'Usage dashboard',
+      'Export test suites',
+      'Community support'
+    ),
+    0 -- Display first
+  ),
+  (
+    'pro',
+    'pro',
+    'Pro',
+    'For individuals building production AI features',
+    2000, -- $20/month
+    1000, -- 1,000 standard outputs/month (GPT-5-mini)
+    200, -- 200 premium outputs/month (GPT-5.1 or Claude Sonnet 4.5)
+    true, -- Access to premium models
+    false, -- Coming soon (Phase 2)
+    jsonb_build_array(
+      'Unlimited projects',
+      '1,000 standard outputs/month (GPT-5-mini)',
+      '200 premium outputs/month (GPT-5.1 or Claude Sonnet 4.5)',
+      'Multi-provider support',
+      'Smart rating carry-forward',
+      'Keyboard shortcuts',
+      'Priority email support'
+    ),
+    1 -- Display second
+  ),
+  (
+    'team',
+    'team',
+    'Team',
+    'For teams collaborating on AI product quality',
+    4900, -- $49/month
+    3000, -- 3,000 standard outputs/month
+    750, -- 750 premium outputs/month
+    true, -- Access to premium models
+    false, -- Coming soon (Phase 2)
+    jsonb_build_array(
+      'Everything in Pro',
+      '3,000 standard outputs/month',
+      '750 premium outputs/month',
+      'Team collaboration (coming soon)',
+      'Prompt version history',
+      'Failure clustering',
+      'Selective retest',
+      'Priority support + Slack channel'
+    ),
+    2 -- Display third
+  ),
+  (
+    'enterprise',
+    'enterprise',
+    'Enterprise',
+    'For large organizations with custom needs',
+    19900, -- $199/month
+    10000, -- 10,000 standard outputs/month
+    2500, -- 2,500 premium outputs/month
+    true, -- Access to all models
+    false, -- Coming soon (Phase 2)
+    jsonb_build_array(
+      'Everything in Team',
+      '10,000+ standard outputs/month',
+      '2,500+ premium outputs/month',
+      'Access to all models (GPT-5.2, Claude Opus 4.5, o3)',
+      'Bring Your Own Keys (unlimited with your API keys)',
+      'SSO / SAML authentication',
+      'Dedicated account manager',
+      'Custom integrations',
+      'SLA guarantees (99.9% uptime)'
+    ),
+    3 -- Display fourth
+  )
+on conflict (id) do update set
+  name = excluded.name,
+  display_name = excluded.display_name,
+  description = excluded.description,
+  price_monthly_cents = excluded.price_monthly_cents,
+  standard_outputs_limit = excluded.standard_outputs_limit,
+  premium_outputs_limit = excluded.premium_outputs_limit,
+  allow_premium_models = excluded.allow_premium_models,
+  is_available = excluded.is_available,
+  features = excluded.features,
+  sort_order = excluded.sort_order;
+
+-- =====================================================
+-- TEST USER AND WORKBENCH
+-- =====================================================
+
 -- Create test user in auth.users (Supabase Auth)
 -- Password: testpass123
 insert into auth.users (
@@ -70,6 +191,36 @@ values (
 )
 on conflict (user_id, workbench_id) do nothing;
 
+-- =====================================================
+-- SUBSCRIPTION FOR TEST WORKBENCH
+-- =====================================================
+-- Create free tier subscription for test workbench
+insert into subscriptions (
+  id,
+  workbench_id,
+  plan_id,
+  status,
+  current_period_start,
+  current_period_end,
+  standard_outputs_used,
+  premium_outputs_used,
+  created_at,
+  updated_at
+)
+values (
+  '00000000-0000-0000-0000-000000000001'::uuid,
+  '00000000-0000-0000-0000-000000000001'::uuid,
+  'free',
+  'active',
+  date_trunc('month', now()),
+  (date_trunc('month', now()) + interval '1 month' - interval '1 day')::date,
+  0, -- No outputs used yet
+  0, -- No premium outputs used
+  now(),
+  now()
+)
+on conflict (id) do nothing;
+
 -- Create sample project with prompt_version
 insert into projects (
   id,
@@ -86,7 +237,7 @@ values (
   1,
   'Date Parser Evaluation',
   'Testing date extraction accuracy with various input formats',
-  '{"model": "claude-haiku-4-5-20251001", "temperature": 0.7, "system_prompt": "Extract event details from the text. Return JSON with event name, date, time, location."}'::jsonb,
+  '{"model": "gpt-5-nano", "temperature": 0.7, "system_prompt": "Extract event details from the text. Return JSON with event name, date, time, location."}'::jsonb,
   '00000000-0000-0000-0000-000000000001'::uuid,
   '00000000-0000-0000-0000-000000000001'::uuid,
   1,
@@ -114,25 +265,25 @@ on conflict do nothing;
 insert into outputs (scenario_id, output_text, model_snapshot)
 values
   -- Scenario 1: defaults to 2022 (FAILURE)
-  (1, '{"event":"Team Meeting","date":"2022-12-10","time":"14:00","location":"blue room"}', '{"model":"claude-haiku-4-5-20251001","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
+  (1, '{"event":"Team Meeting","date":"2022-12-10","time":"14:00","location":"blue room"}', '{"model":"gpt-5-nano","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
   -- Scenario 2: correct (SUCCESS)
-  (2, '{"event":"Annual Company Retreat","date":"2025-10-05","time":null,"location":null}', '{"model":"claude-haiku-4-5-20251001","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
+  (2, '{"event":"Annual Company Retreat","date":"2025-10-05","time":null,"location":null}', '{"model":"gpt-5-nano","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
   -- Scenario 3: defaults to 2022 (FAILURE)
-  (3, '{"event":"Quick Standup","date":"2022-12-16","time":"09:00","location":null}', '{"model":"claude-haiku-4-5-20251001","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
+  (3, '{"event":"Quick Standup","date":"2022-12-16","time":"09:00","location":null}', '{"model":"gpt-5-nano","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
   -- Scenario 4: correct (SUCCESS)
-  (4, '{"event":"Board Meeting","date":"2025-11-03","time":"13:00","location":null}', '{"model":"claude-haiku-4-5-20251001","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
+  (4, '{"event":"Board Meeting","date":"2025-11-03","time":"13:00","location":null}', '{"model":"gpt-5-nano","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
   -- Scenario 5: defaults to 2022 (FAILURE)
-  (5, '{"event":"Emergency All-Hands Meeting","date":"2022-12-09","time":"16:30","location":null}', '{"model":"claude-haiku-4-5-20251001","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
+  (5, '{"event":"Emergency All-Hands Meeting","date":"2022-12-09","time":"16:30","location":null}', '{"model":"gpt-5-nano","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
   -- Scenario 6: correct (SUCCESS)
-  (6, '{"event":"Parent-Teacher Conference","date":"2025-04-18","time":"15:15","location":null}', '{"model":"claude-haiku-4-5-20251001","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
+  (6, '{"event":"Parent-Teacher Conference","date":"2025-04-18","time":"15:15","location":null}', '{"model":"gpt-5-nano","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
   -- Scenario 7: correct (SUCCESS)
-  (7, '{"event":"Workshop Series","date":"2025-01-06","time":"15:00","location":null}', '{"model":"claude-haiku-4-5-20251001","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
+  (7, '{"event":"Workshop Series","date":"2025-01-06","time":"15:00","location":null}', '{"model":"gpt-5-nano","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
   -- Scenario 8: correct (SUCCESS)
-  (8, '{"event":"Flight Departure","date":"2025-12-15","time":"06:45","location":"LAX"}', '{"model":"claude-haiku-4-5-20251001","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
+  (8, '{"event":"Flight Departure","date":"2025-12-15","time":"06:45","location":"LAX"}', '{"model":"gpt-5-nano","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
   -- Scenario 9: correct (SUCCESS)
-  (9, '{"event":"Sarah & Mike''s Wedding","date":"2025-06-14","time":null,"location":null}', '{"model":"claude-haiku-4-5-20251001","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
+  (9, '{"event":"Sarah & Mike''s Wedding","date":"2025-06-14","time":null,"location":null}', '{"model":"gpt-5-nano","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
   -- Scenario 10: defaults to 2022 (FAILURE)
-  (10, '{"event":"Doctor Appointment","date":"2022-12-13","time":"10:30","location":"Dr. Smith''s office"}', '{"model":"claude-haiku-4-5-20251001","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb)
+  (10, '{"event":"Doctor Appointment","date":"2022-12-13","time":"10:30","location":"Dr. Smith''s office"}', '{"model":"gpt-5-nano","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb)
 on conflict do nothing;
 
 -- Insert ratings (4 failures with feedback, 6 successes)

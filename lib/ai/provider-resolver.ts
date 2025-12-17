@@ -25,69 +25,51 @@ export interface UserApiKeys {
 /**
  * Resolves which AI provider and model to use based on:
  * 1. User's requested model
- * 2. Available API keys
- * 3. Fallback to free tier if needed
+ * 2. Available API keys (user or system)
  *
- * @param requestedModel - The model name requested (e.g., 'gpt-4', 'claude-opus-4')
+ * Phase 1 Strategy:
+ * - All users (free tier) use system API keys with quota limits enforced by subscription system
+ * - No user API keys (BYOK) in Phase 1
+ * - Requested model is used as-is (no fallback logic needed)
+ *
+ * Phase 2+ Strategy (Future):
+ * - Paid users can bring their own API keys (BYOK)
+ * - Fallback logic will be added for users without keys for specific providers
+ *
+ * @param requestedModel - The model name requested (e.g., 'gpt-5-nano', 'claude-opus-4')
  * @param userKeys - User's API keys object (or null if not configured)
  * @returns Provider configuration with model, API key, and fallback status
  *
  * @example
- * // User has OpenAI key and requests GPT-4
- * const config = resolveProvider('gpt-4', { openai: 'sk-test' });
- * // Returns: { provider: 'openai', modelName: 'gpt-4', apiKey: 'sk-test', usingFallback: false }
- *
- * @example
- * // User has no keys - fallback to system
- * const config = resolveProvider('claude-opus-4', null);
- * // Returns: { provider: 'openai', modelName: 'gpt-3.5-turbo', apiKey: undefined, usingFallback: true }
+ * // Phase 1: No user keys, use system keys with requested model
+ * const config = resolveProvider('gpt-5-nano', null);
+ * // Returns: { provider: 'openai', modelName: 'gpt-5-nano', apiKey: undefined, usingFallback: false }
  */
 export function resolveProvider(
   requestedModel: string,
   userKeys: UserApiKeys | null
 ): ProviderConfig {
-  const defaultModel = 'gpt-3.5-turbo';
-  let modelName = requestedModel || defaultModel;
-  let isClaudeModel = modelName.includes('claude');
-  let provider: 'openai' | 'anthropic' = isClaudeModel ? 'anthropic' : 'openai';
-  let usingFallback = false;
+  const defaultModel = 'gpt-5-nano';
+  const modelName = requestedModel || defaultModel;
+  const isClaudeModel = modelName.includes('claude');
+  const provider: 'openai' | 'anthropic' = isClaudeModel ? 'anthropic' : 'openai';
 
-  // Check if user has any API keys configured
+  // Phase 1: All users use system API keys (apiKey is undefined)
+  // The quota system enforces model access based on subscription plan
+  // No fallback needed - use the requested model as-is
   const hasUserKeys = userKeys?.openai || userKeys?.anthropic;
 
   if (!hasUserKeys) {
-    // No user keys - use system keys with inexpensive model
-    console.log('No user API keys configured, using system fallback');
-    modelName = 'gpt-3.5-turbo';
-    provider = 'openai';
-    usingFallback = true;
-  } else if (!userKeys[provider]) {
-    // User has keys but not for the requested provider
-    // Fall back to whichever provider they have configured
-    if (userKeys.openai) {
-      console.log(`User requested ${provider} but only has OpenAI key, falling back to GPT-3.5 Turbo`);
-      modelName = 'gpt-3.5-turbo';
-      provider = 'openai';
-      usingFallback = true;
-    } else if (userKeys.anthropic) {
-      console.log(`User requested ${provider} but only has Anthropic key, falling back to Claude Haiku`);
-      modelName = 'claude-haiku-4-5-20251001';
-      provider = 'anthropic';
-      usingFallback = true;
-    }
+    console.log('No user API keys configured, using system keys');
   }
 
-  // Get the appropriate API key
-  // At this point, 'provider' has been updated to either:
-  // 1. The originally requested provider (if user has that key)
-  // 2. The fallback provider (if we switched to user's available provider)
-  // So userKeys[provider] gives us the correct key for whichever provider we're using
+  // Get the appropriate API key (will be undefined for Phase 1, system keys used in generation.ts)
   const apiKey = userKeys?.[provider] ?? undefined;
 
   return {
     provider,
     modelName,
     apiKey,
-    usingFallback,
+    usingFallback: false, // Phase 1: No fallback, quota system handles model restrictions
   };
 }

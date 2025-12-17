@@ -2,12 +2,17 @@ import { describe, it, expect } from 'vitest';
 import { resolveProvider } from '@/lib/ai/provider-resolver';
 
 /**
- * Provider Resolver Tests (Sprint 2 - Issue #4)
+ * Provider Resolver Tests
  *
- * Tests the logic for determining which AI provider and model to use based on:
- * 1. User's requested model
- * 2. Available API keys (user-provided or system)
- * 3. Fallback behavior when keys are missing
+ * Phase 1 Strategy (Current):
+ * - All users use system API keys with quota enforcement
+ * - No user API keys (BYOK) in Phase 1
+ * - Requested model is used as-is (no fallback logic)
+ * - Quota system enforces model access based on subscription plan
+ *
+ * Phase 2+ Strategy (Future):
+ * - Paid users can bring their own API keys (BYOK)
+ * - Tests will be updated to include fallback logic for users without keys
  */
 
 describe('Provider Resolver - With user API keys', () => {
@@ -48,62 +53,64 @@ describe('Provider Resolver - With user API keys', () => {
   });
 });
 
-describe('Provider Resolver - Fallback behavior (No user keys)', () => {
-  it('should fallback to gpt-3.5-turbo when no API keys configured', () => {
+describe('Provider Resolver - Phase 1 (No fallback, use requested model)', () => {
+  it('should use requested model as-is when no API keys configured', () => {
     const result = resolveProvider('gpt-4', null);
 
     expect(result.provider).toBe('openai');
-    expect(result.modelName).toBe('gpt-3.5-turbo');
+    expect(result.modelName).toBe('gpt-4');
     expect(result.apiKey).toBeUndefined();
-    expect(result.usingFallback).toBe(true);
+    expect(result.usingFallback).toBe(false); // Phase 1: No fallback
   });
 
-  it('should fallback to gpt-3.5-turbo even when requesting Claude', () => {
+  it('should use requested Claude model when no API keys configured', () => {
     const result = resolveProvider('claude-opus-4', null);
 
-    expect(result.provider).toBe('openai');
-    expect(result.modelName).toBe('gpt-3.5-turbo');
+    expect(result.provider).toBe('anthropic');
+    expect(result.modelName).toBe('claude-opus-4');
     expect(result.apiKey).toBeUndefined();
-    expect(result.usingFallback).toBe(true);
+    expect(result.usingFallback).toBe(false); // Phase 1: No fallback
   });
 
-  it('should use default model when no model specified and no keys', () => {
+  it('should use default model (gpt-5-nano) when no model specified and no keys', () => {
     const result = resolveProvider('', null);
 
     expect(result.provider).toBe('openai');
-    expect(result.modelName).toBe('gpt-3.5-turbo');
+    expect(result.modelName).toBe('gpt-5-nano');
     expect(result.apiKey).toBeUndefined();
-    expect(result.usingFallback).toBe(true);
+    expect(result.usingFallback).toBe(false); // Phase 1: No fallback
   });
 });
 
-describe('Provider Resolver - Fallback behavior (Missing provider key)', () => {
-  it('should fallback to gpt-3.5-turbo when requesting Claude but only have OpenAI key', () => {
+describe('Provider Resolver - Phase 2 behavior (BYOK - Future)', () => {
+  it('should use requested Claude model even when only OpenAI key available (Phase 1)', () => {
+    // Phase 1: No fallback, use system keys for requested model
     const result = resolveProvider('claude-opus-4', { openai: 'sk-test' });
 
-    expect(result.provider).toBe('openai');
-    expect(result.modelName).toBe('gpt-3.5-turbo');
-    expect(result.apiKey).toBe('sk-test');
-    expect(result.usingFallback).toBe(true);
+    expect(result.provider).toBe('anthropic');
+    expect(result.modelName).toBe('claude-opus-4');
+    expect(result.apiKey).toBeUndefined(); // Uses system key, not user's OpenAI key
+    expect(result.usingFallback).toBe(false);
   });
 
-  it('should fallback to Claude Haiku when requesting GPT but only have Anthropic key', () => {
+  it('should use requested GPT model even when only Anthropic key available (Phase 1)', () => {
+    // Phase 1: No fallback, use system keys for requested model
     const result = resolveProvider('gpt-4', { anthropic: 'sk-ant-test' });
 
-    expect(result.provider).toBe('anthropic');
-    expect(result.modelName).toBe('claude-haiku-4-5-20251001');
-    expect(result.apiKey).toBe('sk-ant-test');
-    expect(result.usingFallback).toBe(true);
+    expect(result.provider).toBe('openai');
+    expect(result.modelName).toBe('gpt-4');
+    expect(result.apiKey).toBeUndefined(); // Uses system key, not user's Anthropic key
+    expect(result.usingFallback).toBe(false);
   });
 
-  it('should NOT fallback when user has correct provider key', () => {
+  it('should use correct provider key when user has matching key', () => {
     // User requests GPT-4 and has OpenAI key - use it!
     const result = resolveProvider('gpt-4', { openai: 'sk-test' });
 
     expect(result.provider).toBe('openai');
     expect(result.modelName).toBe('gpt-4');
     expect(result.apiKey).toBe('sk-test');
-    expect(result.usingFallback).toBe(false); // Not a fallback
+    expect(result.usingFallback).toBe(false);
   });
 });
 
@@ -144,7 +151,7 @@ describe('Provider Resolver - Edge cases', () => {
     const result = resolveProvider('', { openai: 'sk-test' });
 
     expect(result.provider).toBe('openai');
-    expect(result.modelName).toBe('gpt-3.5-turbo');
+    expect(result.modelName).toBe('gpt-5-nano'); // Default model
     expect(result.apiKey).toBe('sk-test');
     expect(result.usingFallback).toBe(false);
   });
@@ -153,7 +160,7 @@ describe('Provider Resolver - Edge cases', () => {
     const result = resolveProvider(undefined as any, { openai: 'sk-test' });
 
     expect(result.provider).toBe('openai');
-    expect(result.modelName).toBe('gpt-3.5-turbo');
+    expect(result.modelName).toBe('gpt-5-nano'); // Default model
     expect(result.apiKey).toBe('sk-test');
     expect(result.usingFallback).toBe(false);
   });
@@ -162,33 +169,34 @@ describe('Provider Resolver - Edge cases', () => {
     const result = resolveProvider('gpt-4', {});
 
     expect(result.provider).toBe('openai');
-    expect(result.modelName).toBe('gpt-3.5-turbo');
+    expect(result.modelName).toBe('gpt-4'); // Phase 1: Use requested model
     expect(result.apiKey).toBeUndefined();
-    expect(result.usingFallback).toBe(true);
+    expect(result.usingFallback).toBe(false); // Phase 1: No fallback
   });
 
   it('should handle API keys with undefined values', () => {
     const result = resolveProvider('gpt-4', { openai: undefined, anthropic: undefined });
 
     expect(result.provider).toBe('openai');
-    expect(result.modelName).toBe('gpt-3.5-turbo');
+    expect(result.modelName).toBe('gpt-4'); // Phase 1: Use requested model
     expect(result.apiKey).toBeUndefined();
-    expect(result.usingFallback).toBe(true);
+    expect(result.usingFallback).toBe(false); // Phase 1: No fallback
   });
 });
 
 describe('Provider Resolver - System key usage', () => {
-  it('should use system key (undefined) when no user keys and fallback', () => {
+  it('should use system key (undefined) when no user keys provided', () => {
     const result = resolveProvider('claude-opus-4', null);
 
     expect(result.apiKey).toBeUndefined(); // System will use env var
-    expect(result.usingFallback).toBe(true);
+    expect(result.usingFallback).toBe(false); // Phase 1: No fallback
   });
 
-  it('should use user key when available even for fallback model', () => {
+  it('should use system key when user has wrong provider key (Phase 1)', () => {
+    // Phase 1: Even if user has OpenAI key, we use system key for Claude
     const result = resolveProvider('claude-opus-4', { openai: 'sk-user-test' });
 
-    expect(result.apiKey).toBe('sk-user-test'); // Uses user's key
-    expect(result.usingFallback).toBe(true); // But it's still a fallback
+    expect(result.apiKey).toBeUndefined(); // Uses system key for Claude
+    expect(result.usingFallback).toBe(false); // Phase 1: No fallback
   });
 });
