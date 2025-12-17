@@ -36,6 +36,19 @@ export default async function ApiKeysPage() {
 
   const workbenchId = userWorkbenches.workbench_id as string;
 
+  // Check subscription plan - BYOK only available for paid plans
+  const { data: subscriptionData } = await supabase.rpc(
+    'get_workbench_subscription',
+    { workbench_uuid: workbenchId }
+  );
+
+  const subscription = subscriptionData?.[0];
+
+  // Redirect free tier users to subscription page
+  if (subscription?.plan_id === 'free') {
+    redirect('/settings/subscription?upgrade_required=true');
+  }
+
   // Check which API keys are configured
   const { data: configured } = await supabase
     .rpc('check_workbench_api_keys', { workbench_uuid: workbenchId }) as {

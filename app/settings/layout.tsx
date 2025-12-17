@@ -19,7 +19,7 @@ export default async function SettingsLayout({ children }: SettingsLayoutProps) 
     redirect('/auth/login');
   }
 
-  // Get user's workbench name for header
+  // Get user's workbench name and subscription for header
   const { data: userWorkbenches } = await supabase
     .from('user_workbenches')
     .select('workbench_id, workbenches(name)')
@@ -28,6 +28,17 @@ export default async function SettingsLayout({ children }: SettingsLayoutProps) 
     .single();
 
   const workbenchName = (userWorkbenches?.workbenches as { name: string } | null)?.name || 'Your Workspace';
+
+  // Get subscription to determine which tabs to show
+  const { data: subscriptionData } = await supabase.rpc(
+    'get_workbench_subscription',
+    { workbench_uuid: userWorkbenches?.workbench_id as string }
+  );
+
+  const subscription = subscriptionData?.[0];
+
+  // BYOK (Bring Your Own Keys) is only available for paid plans
+  const canUseBYOK = subscription?.plan_id !== 'free';
 
   return (
     <div className="container mx-auto px-6 py-8 max-w-5xl">
@@ -39,7 +50,7 @@ export default async function SettingsLayout({ children }: SettingsLayoutProps) 
         </div>
 
         {/* Tabs Navigation */}
-        <SettingsTabs />
+        <SettingsTabs canUseBYOK={canUseBYOK} />
 
         {/* Tab Content */}
         <div className="py-4">{children}</div>

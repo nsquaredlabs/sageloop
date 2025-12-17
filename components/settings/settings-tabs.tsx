@@ -4,27 +4,37 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
-const tabs = [
+interface SettingsTabsProps {
+  canUseBYOK: boolean;
+}
+
+const ALL_TABS = [
   {
     name: 'Subscription',
     href: '/settings/subscription',
     description: 'Plan, usage, and billing',
+    requiresPaid: false, // Always visible
   },
   {
     name: 'API Keys',
     href: '/settings/api-keys',
     description: 'Bring your own keys',
+    requiresPaid: true, // Only for paid plans
   },
   // Phase 2: Team management
   // {
   //   name: 'Team',
   //   href: '/settings/team',
   //   description: 'Members and permissions',
+  //   requiresPaid: true,
   // },
 ];
 
-export function SettingsTabs() {
+export function SettingsTabs({ canUseBYOK }: SettingsTabsProps) {
   const pathname = usePathname();
+
+  // Filter tabs based on subscription plan
+  const tabs = ALL_TABS.filter((tab) => !tab.requiresPaid || canUseBYOK);
 
   return (
     <div className="border-b">
