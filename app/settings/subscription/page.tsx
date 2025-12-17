@@ -138,7 +138,7 @@ export default async function SubscriptionPage() {
             <div className="flex flex-col sm:flex-row gap-3">
               <Button asChild className="flex-1">
                 <a
-                  href="https://tally.so/r/YOUR-FORM-ID"
+                  href="https://tally.so/r/ZjojeA"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center justify-center gap-2"
