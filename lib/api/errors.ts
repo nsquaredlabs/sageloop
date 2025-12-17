@@ -37,6 +37,19 @@ export class UnauthorizedError extends ApiError {
   }
 }
 
+export class QuotaExceededError extends ApiError {
+  constructor(
+    message: string,
+    public usage: {
+      used: number;
+      limit: number;
+      resetDate: string;
+    }
+  ) {
+    super(429, message, 'QUOTA_EXCEEDED', { usage });
+  }
+}
+
 /**
  * Standardized error handler for API routes
  * Returns consistent JSON error responses

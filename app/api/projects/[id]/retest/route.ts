@@ -4,6 +4,9 @@ import { parseId } from '@/lib/utils';
 import { resolveProvider } from '@/lib/ai/provider-resolver';
 import { generateCompletion } from '@/lib/ai/generation';
 import { calculateSimilarity } from '@/lib/utils/string-similarity';
+import { checkQuotaAvailable, incrementUsage, getUsageHeaders } from '@/lib/api/quota-middleware';
+import { getModelTier } from '@/lib/ai/model-tiers';
+import { handleApiError } from '@/lib/api/errors';
 import type { ModelConfig, UserApiKeys } from '@/types/database';
 import type { RetestRequest, RetestResponse } from '@/types/api';
 import { retestSchema } from '@/lib/validation/schemas';
@@ -79,10 +82,41 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     // Determine which provider and model to use
-    const { provider, modelName, apiKey, usingFallback } = resolveProvider(
+    const { provider, modelName, apiKey } = resolveProvider(
       modelConfig.model || 'gpt-3.5-turbo',
       apiKeys
     );
+
+    // Fetch ALL scenarios for the project first to check quota
+    const { data: allScenarios, error: allScenariosError } = await supabase
+      .from('scenarios')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('order', { ascending: true });
+
+    if (allScenariosError || !allScenarios) {
+      return NextResponse.json(
+        { error: 'Failed to fetch scenarios' },
+        { status: 500 }
+      );
+    }
+
+    // CHECK QUOTA: Ensure workbench has quota for all scenarios
+    if (!project.workbench_id) {
+      return NextResponse.json(
+        { error: 'Project has no associated workbench' },
+        { status: 500 }
+      );
+    }
+
+    const subscription = await checkQuotaAvailable(
+      supabase,
+      project.workbench_id,
+      modelName,
+      allScenarios.length
+    );
+
+    const modelTier = getModelTier(modelName);
 
     // Calculate success rate before change (for failed scenarios only)
     const { data: oldOutputs } = await supabase
@@ -146,23 +180,13 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
     }
 
-    // Fetch ALL scenarios for the project (not just failed ones)
-    // This ensures all outputs match the current prompt version
-    const { data: scenarios, error: scenariosError } = await supabase
-      .from('scenarios')
-      .select('*')
-      .eq('project_id', projectId)
-      .order('order', { ascending: true });
-
-    if (scenariosError || !scenarios) {
-      return NextResponse.json(
-        { error: 'Failed to fetch scenarios' },
-        { status: 500 }
-      );
-    }
+    // Use scenarios already fetched for quota check
+    const scenarios = allScenarios;
 
     // Generate new outputs for each scenario
     const newOutputs = [];
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
     for (const scenario of scenarios) {
       try {
         // Generate completion using unified service
@@ -178,6 +202,14 @@ export async function POST(request: Request, { params }: RouteParams) {
 
         const outputText = result.text;
         const usage = result.usage;
+
+        // Track token usage for quota increment
+        if (usage.inputTokens) {
+          totalInputTokens += usage.inputTokens;
+        }
+        if (usage.outputTokens) {
+          totalOutputTokens += usage.outputTokens;
+        }
 
         // Save new output
         const { data: output, error: outputError } = await supabase
@@ -296,6 +328,18 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
     console.log('Rating carryforward complete');
 
+    // INCREMENT USAGE: Track successful generation in quota system
+    if (newOutputs.length > 0) {
+      await incrementUsage(
+        supabase,
+        project.workbench_id,
+        modelName,
+        newOutputs.length,
+        totalInputTokens,
+        totalOutputTokens,
+        projectId
+      );
+    }
 
     const response: RetestResponse = {
       success: true,
@@ -308,12 +352,11 @@ export async function POST(request: Request, { params }: RouteParams) {
       },
     };
 
-    return NextResponse.json(response);
+    // Add quota usage headers to response
+    const headers = getUsageHeaders(subscription, modelTier);
+
+    return NextResponse.json(response, { headers });
   } catch (error) {
-    console.error('API error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

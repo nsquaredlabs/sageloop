@@ -111,9 +111,13 @@ export async function generateCompletion(
 
   if (provider === 'openai') {
     const openai = createOpenAIClient(apiKey);
+
+    // gpt-5-nano only supports temperature=1 (default), omit temperature parameter
+    const isGpt5Nano = model === 'gpt-5-nano';
+
     const completion = await openai.chat.completions.create({
       model,
-      temperature,
+      ...(isGpt5Nano ? {} : { temperature }), // Omit temperature for gpt-5-nano
       messages: [
         ...(interpolatedSystemPrompt ? [{ role: 'system' as const, content: interpolatedSystemPrompt }] : []),
         { role: 'user' as const, content: interpolatedUserMessage },

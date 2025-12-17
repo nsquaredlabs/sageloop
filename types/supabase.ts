@@ -215,6 +215,7 @@ export type Database = {
           extraction_version: number | null
           feedback_text: string | null
           id: number
+          metadata: Json | null
           output_id: number | null
           stars: number
           tags: Json | null
@@ -224,6 +225,7 @@ export type Database = {
           extraction_version?: number | null
           feedback_text?: string | null
           id?: never
+          metadata?: Json | null
           output_id?: number | null
           stars: number
           tags?: Json | null
@@ -233,6 +235,7 @@ export type Database = {
           extraction_version?: number | null
           feedback_text?: string | null
           id?: never
+          metadata?: Json | null
           output_id?: number | null
           stars?: number
           tags?: Json | null
@@ -275,6 +278,175 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscription_plans: {
+        Row: {
+          allow_premium_models: boolean
+          allow_team_collaboration: boolean
+          created_at: string | null
+          description: string | null
+          display_name: string
+          features: Json | null
+          id: string
+          is_available: boolean
+          name: string
+          premium_outputs_limit: number
+          price_monthly_cents: number
+          sort_order: number
+          standard_outputs_limit: number
+        }
+        Insert: {
+          allow_premium_models?: boolean
+          allow_team_collaboration?: boolean
+          created_at?: string | null
+          description?: string | null
+          display_name: string
+          features?: Json | null
+          id: string
+          is_available?: boolean
+          name: string
+          premium_outputs_limit?: number
+          price_monthly_cents?: number
+          sort_order?: number
+          standard_outputs_limit?: number
+        }
+        Update: {
+          allow_premium_models?: boolean
+          allow_team_collaboration?: boolean
+          created_at?: string | null
+          description?: string | null
+          display_name?: string
+          features?: Json | null
+          id?: string
+          is_available?: boolean
+          name?: string
+          premium_outputs_limit?: number
+          price_monthly_cents?: number
+          sort_order?: number
+          standard_outputs_limit?: number
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          created_at: string | null
+          current_period_end: string
+          current_period_start: string
+          id: string
+          last_usage_reset: string | null
+          plan_id: string
+          premium_outputs_used: number
+          standard_outputs_used: number
+          status: string
+          updated_at: string | null
+          workbench_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          current_period_end: string
+          current_period_start?: string
+          id?: string
+          last_usage_reset?: string | null
+          plan_id: string
+          premium_outputs_used?: number
+          standard_outputs_used?: number
+          status?: string
+          updated_at?: string | null
+          workbench_id: string
+        }
+        Update: {
+          created_at?: string | null
+          current_period_end?: string
+          current_period_start?: string
+          id?: string
+          last_usage_reset?: string | null
+          plan_id?: string
+          premium_outputs_used?: number
+          standard_outputs_used?: number
+          status?: string
+          updated_at?: string | null
+          workbench_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscriptions_workbench_id_fkey"
+            columns: ["workbench_id"]
+            isOneToOne: true
+            referencedRelation: "workbenches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      usage_events: {
+        Row: {
+          created_at: string | null
+          id: string
+          input_tokens: number | null
+          model_name: string
+          model_tier: string
+          output_count: number
+          output_tokens: number | null
+          project_id: number | null
+          subscription_id: string | null
+          total_tokens: number | null
+          workbench_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          input_tokens?: number | null
+          model_name: string
+          model_tier: string
+          output_count?: number
+          output_tokens?: number | null
+          project_id?: number | null
+          subscription_id?: string | null
+          total_tokens?: number | null
+          workbench_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          input_tokens?: number | null
+          model_name?: string
+          model_tier?: string
+          output_count?: number
+          output_tokens?: number | null
+          project_id?: number | null
+          subscription_id?: string | null
+          total_tokens?: number | null
+          workbench_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "usage_events_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "usage_events_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "usage_events_workbench_id_fkey"
+            columns: ["workbench_id"]
+            isOneToOne: false
+            referencedRelation: "workbenches"
             referencedColumns: ["id"]
           },
         ]
@@ -340,6 +512,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      calculate_next_period_end: { Args: never; Returns: string }
+      check_quota_available: {
+        Args: { count?: number; model_tier: string; workbench_uuid: string }
+        Returns: boolean
+      }
       check_workbench_api_keys: {
         Args: { workbench_uuid: string }
         Returns: Json
@@ -347,6 +524,37 @@ export type Database = {
       get_workbench_api_keys: {
         Args: { workbench_uuid: string }
         Returns: Json
+      }
+      get_workbench_subscription: {
+        Args: { workbench_uuid: string }
+        Returns: {
+          allow_premium_models: boolean
+          current_period_end: string
+          id: string
+          plan_id: string
+          plan_name: string
+          premium_outputs_limit: number
+          premium_outputs_used: number
+          standard_outputs_limit: number
+          standard_outputs_used: number
+          status: string
+        }[]
+      }
+      increment_usage: {
+        Args: {
+          count?: number
+          input_tokens?: number
+          model_name: string
+          model_tier: string
+          output_tokens?: number
+          project_id?: number
+          workbench_uuid: string
+        }
+        Returns: undefined
+      }
+      reset_monthly_usage: {
+        Args: { workbench_uuid: string }
+        Returns: undefined
       }
       set_workbench_api_keys: {
         Args: { api_keys_json: Json; workbench_uuid: string }

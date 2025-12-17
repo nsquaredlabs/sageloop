@@ -3,6 +3,9 @@ import { createServerClient } from '@/lib/supabase';
 import { parseId } from '@/lib/utils';
 import { resolveProvider } from '@/lib/ai/provider-resolver';
 import { generateCompletion } from '@/lib/ai/generation';
+import { checkQuotaAvailable, incrementUsage, getUsageHeaders } from '@/lib/api/quota-middleware';
+import { getModelTier } from '@/lib/ai/model-tiers';
+import { handleApiError } from '@/lib/api/errors';
 import type { ModelConfig, UserApiKeys, ModelSnapshot } from '@/types/database';
 import type { GenerateOutputsResponse } from '@/types/api';
 
@@ -10,7 +13,7 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-export async function POST(request: Request, { params }: RouteParams) {
+export async function POST(_request: Request, { params }: RouteParams) {
   try {
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -71,14 +74,35 @@ export async function POST(request: Request, { params }: RouteParams) {
     const modelConfig = project.model_config as unknown as ModelConfig;
 
     // Determine which provider and model to use
-    const { provider, modelName, apiKey, usingFallback } = resolveProvider(
+    const { provider, modelName, apiKey } = resolveProvider(
       modelConfig.model || 'gpt-3.5-turbo',
       apiKeys
     );
 
+    // CHECK QUOTA: Ensure workbench has quota for the number of outputs to generate
+    const scenarioCount = scenarios.length;
+
+    if (!project.workbench_id) {
+      return NextResponse.json(
+        { error: 'Project has no associated workbench' },
+        { status: 500 }
+      );
+    }
+
+    const subscription = await checkQuotaAvailable(
+      supabase,
+      project.workbench_id,
+      modelName,
+      scenarioCount
+    );
+
+    const modelTier = getModelTier(modelName);
+
     // Generate outputs for each scenario
     const generatedOutputs = [];
     const errors = [];
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
 
     for (const scenario of scenarios) {
       try {
@@ -95,6 +119,14 @@ export async function POST(request: Request, { params }: RouteParams) {
 
         const outputText = result.text;
         const usage = result.usage;
+
+        // Track token usage for quota increment
+        if (usage.inputTokens) {
+          totalInputTokens += usage.inputTokens;
+        }
+        if (usage.outputTokens) {
+          totalOutputTokens += usage.outputTokens;
+        }
 
         // Save output to database
         const { data: output, error: outputError } = await supabase
@@ -130,6 +162,19 @@ export async function POST(request: Request, { params }: RouteParams) {
       }
     }
 
+    // INCREMENT USAGE: Track successful generation in quota system
+    if (generatedOutputs.length > 0) {
+      await incrementUsage(
+        supabase,
+        project.workbench_id,
+        modelName,
+        generatedOutputs.length,
+        totalInputTokens,
+        totalOutputTokens,
+        projectId
+      );
+    }
+
     const response: GenerateOutputsResponse = {
       success: true,
       generated: generatedOutputs.length,
@@ -141,12 +186,11 @@ export async function POST(request: Request, { params }: RouteParams) {
       errors: errors.length > 0 ? errors : undefined,
     };
 
-    return NextResponse.json(response);
+    // Add quota usage headers to response
+    const headers = getUsageHeaders(subscription, modelTier);
+
+    return NextResponse.json(response, { headers });
   } catch (error) {
-    console.error('API error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
