@@ -1,0 +1,18 @@
+# Generated files
+types/supabase.ts
+
+# Build output
+.next/
+dist/
+build/
+
+# Dependencies
+node_modules/
+
+# Coverage
+coverage/
+
+# Config files (already in eslint.config.security.mjs ignores)
+*.config.js
+*.config.ts
+*.config.mjs

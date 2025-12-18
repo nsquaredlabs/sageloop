@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Run lint-staged for security scanning
+npx lint-staged
+
+# Run security dependency check
+npm run security:deps
