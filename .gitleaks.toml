@@ -21,6 +21,7 @@ regexes = [
 paths = [
   '''.env.example''',
   '''tests/setup.ts''',
+  '''tests/security/.*\.test\.ts''',
   '''README.md''',
   '''docs/.*\.md''',
 ]
