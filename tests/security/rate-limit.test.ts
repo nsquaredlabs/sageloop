@@ -183,7 +183,7 @@ describe("Rate Limiting (CWE-400)", () => {
     it("should wrap handler with rate limiting", async () => {
       const config = { maxRequests: 2, windowMs: 60000 };
 
-      const handler = withRateLimit(async () => {
+      const handler = withRateLimit(async (request: Request) => {
         return new Response(JSON.stringify({ success: true }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
@@ -208,7 +208,7 @@ describe("Rate Limiting (CWE-400)", () => {
     it("should add rate limit headers to success responses", async () => {
       const config = { maxRequests: 5, windowMs: 60000 };
 
-      const handler = withRateLimit(async () => {
+      const handler = withRateLimit(async (request: Request) => {
         return new Response(JSON.stringify({ success: true }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
