@@ -1,0 +1,96 @@
+# Gitleaks configuration for Sageloop
+# Detects hardcoded secrets in code
+
+title = "Sageloop Secrets Detection"
+
+[allowlist]
+description = "Allowlist for Sageloop"
+
+# Allow example/placeholder keys in documentation
+regexes = [
+  '''your-.*-key''',
+  '''your-.*-here''',
+  '''sk-test-''',
+  '''sk-proj-example''',
+  '''example\.com''',
+  '''127\.0\.0\.1''',
+  '''localhost''',
+]
+
+# Allow specific files that contain example secrets
+paths = [
+  '''.env.example''',
+  '''tests/setup.ts''',
+  '''tests/security/.*\.test\.ts''',
+  '''README.md''',
+  '''docs/.*\.md''',
+]
+
+# OpenAI API Keys
+[[rules]]
+id = "openai-api-key"
+description = "OpenAI API Key"
+regex = '''(?i)(sk-proj-[a-zA-Z0-9]{20,})'''
+keywords = ["sk-proj"]
+
+[[rules]]
+id = "openai-legacy-key"
+description = "OpenAI Legacy API Key"
+regex = '''(?i)(sk-[a-zA-Z0-9]{32,})'''
+keywords = ["sk-"]
+
+# Anthropic API Keys
+[[rules]]
+id = "anthropic-api-key"
+description = "Anthropic API Key"
+regex = '''(?i)(sk-ant-api03-[a-zA-Z0-9\-_]{95,})'''
+keywords = ["sk-ant-api03"]
+
+# Supabase Keys (JWT format)
+[[rules]]
+id = "supabase-service-key"
+description = "Supabase Service Role Key"
+regex = '''(?i)(eyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,})'''
+keywords = ["eyJ"]
+
+# Generic API Keys
+[[rules]]
+id = "generic-api-key"
+description = "Generic API Key"
+regex = '''(?i)(api[_-]?key|apikey|api[_-]?secret).*[:=]\s*['"]{0,1}([a-zA-Z0-9\-_]{32,})['"]{0,1}'''
+keywords = ["api_key", "apikey", "api-key"]
+
+# AWS Keys
+[[rules]]
+id = "aws-access-key"
+description = "AWS Access Key"
+regex = '''(?i)(A3T[A-Z0-9]{16,})'''
+keywords = ["AKIA"]
+
+# Private Keys
+[[rules]]
+id = "private-key"
+description = "Private Key"
+regex = '''-----BEGIN (RSA |EC |OPENSSH |PGP |DSA )?PRIVATE KEY-----'''
+keywords = ["BEGIN PRIVATE KEY", "BEGIN RSA PRIVATE KEY"]
+
+# Generic Secrets
+[[rules]]
+id = "generic-secret"
+description = "Generic Secret"
+regex = '''(?i)(secret|password|passwd|pwd).*[:=]\s*['"]{0,1}([a-zA-Z0-9\-_!@#$%^&*()]{12,})['"]{0,1}'''
+keywords = ["secret", "password", "passwd"]
+
+# Database Connection Strings
+[[rules]]
+id = "database-url"
+description = "Database Connection String"
+regex = '''(?i)(postgres|postgresql|mysql|mongodb)://[a-zA-Z0-9\-_.]+:[a-zA-Z0-9\-_.!@#$%^&*()]+@[a-zA-Z0-9\-_.]+'''
+keywords = ["postgres://", "postgresql://", "mysql://", "mongodb://"]
+
+# JWT Tokens
+[[rules]]
+id = "jwt-token"
+description = "JWT Token"
+regex = '''eyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}'''
+keywords = ["eyJ"]

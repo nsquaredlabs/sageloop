@@ -1,0 +1,5 @@
+# Run lint-staged for security scanning
+npx lint-staged
+
+# Run security dependency check
+npm run security:deps
