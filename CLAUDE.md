@@ -875,3 +875,478 @@ If you encounter old color patterns:
 - **Sprint Summaries**: `docs/design-sprint-0-summary.md`, `docs/design-sprint-1-summary.md`
 - **Color Variables**: `app/globals.css` (CSS variables)
 - **Tailwind Config**: `tailwind.config.ts` (color tokens)
+
+## Security Patterns
+
+Sageloop follows security best practices based on OWASP guidelines and SUSVIBES research findings. All security patterns are documented in [docs/security/SECURITY_CHECKLIST.md](docs/security/SECURITY_CHECKLIST.md).
+
+### Security Testing
+
+**Always run security tests before committing**:
+```bash
+npm test tests/security/        # All security tests (159 tests)
+npm run security:all            # All security checks
+npm run security:secrets        # Scan for hardcoded secrets
+```
+
+**Test Coverage**: 159 security tests covering:
+- Authentication & Authorization (10 tests)
+- Row Level Security (6 tests)
+- Input Validation (15 tests)
+- Sanitization (40 tests)
+- Security Headers (24 tests)
+- Rate Limiting (19 tests)
+- API Keys (13 tests)
+- Middleware (14 tests)
+- Secrets Management (18 tests)
+
+### Authentication & Authorization
+
+**ALWAYS check authentication in API routes**:
+
+```typescript
+// ✅ CORRECT: Check auth in every protected route
+import { createServerClient } from '@/lib/supabase';
+import { NextResponse } from 'next/server';
+
+export async function POST(request: Request) {
+  const supabase = await createServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Continue with authenticated logic
+  // RLS automatically filters data by user's workbenches
+}
+
+// ❌ WRONG: No auth check
+export async function POST(request: Request) {
+  // Anyone can call this!
+}
+```
+
+**NEVER use `supabaseAdmin` for user-facing queries**:
+
+```typescript
+// ❌ WRONG: Bypasses RLS, exposes all data
+import { supabaseAdmin } from '@/lib/supabase/admin';
+
+const { data } = await supabaseAdmin
+  .from('projects')
+  .select('*'); // Returns ALL projects from ALL users!
+
+// ✅ CORRECT: Use RLS-protected client
+import { createServerClient } from '@/lib/supabase';
+
+const supabase = await createServerClient();
+const { data } = await supabase
+  .from('projects')
+  .select('*'); // Returns only user's accessible projects
+```
+
+**RLS Pattern**: All user data is protected by Row Level Security:
+```
+User → Workbenches (via user_workbenches) → Projects → Scenarios → Outputs → Ratings
+```
+
+### Input Validation
+
+**ALWAYS validate user input with Zod schemas**:
+
+```typescript
+// ✅ CORRECT: Validate all inputs
+import { createProjectSchema } from '@/lib/validation/schemas';
+import { z } from 'zod';
+
+export async function POST(request: Request) {
+  const body = await request.json();
+
+  try {
+    const validatedData = createProjectSchema.parse(body);
+    // validatedData is now type-safe and validated
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid request data', details: error.issues },
+        { status: 400 }
+      );
+    }
+  }
+}
+
+// ❌ WRONG: No validation
+export async function POST(request: Request) {
+  const { name } = await request.json();
+  // name could be 1MB string, cause resource exhaustion!
+}
+```
+
+**Validation Limits** (prevents CWE-400 resource exhaustion):
+
+| Field Type | Limit | Schema |
+|-----------|-------|--------|
+| Scenario input | 10,000 chars | `createScenarioSchema` |
+| Feedback text | 5,000 chars | `createRatingSchema` |
+| Tag array | 10 tags | `createRatingSchema` |
+| Tag length | 50 chars | `createRatingSchema` |
+| Project name | 100 chars | `createProjectSchema` |
+| Description | 500 chars | `createProjectSchema` |
+
+### Sanitization
+
+**ALWAYS sanitize user content before rendering**:
+
+```typescript
+// ✅ CORRECT: Sanitize HTML
+import { sanitize } from '@/lib/security/sanitize';
+
+// HTML content (allows safe tags like <b>, <i>)
+const safeHtml = sanitize.userContent(userInput);
+<div dangerouslySetInnerHTML={{ __html: safeHtml }} />
+
+// Plain text (strips all HTML)
+const safePlainText = sanitize.plainText(userInput);
+
+// Filenames (prevents path traversal)
+const safeFilename = sanitize.filename(project.name);
+
+// URLs (blocks javascript:, data:, etc.)
+const safeUrl = sanitize.url(userProvidedUrl);
+
+// ❌ WRONG: No sanitization
+<div dangerouslySetInnerHTML={{ __html: userInput }} />
+// XSS vulnerability!
+```
+
+**Available sanitization functions**:
+- `sanitize.userContent(html)` - Allow safe HTML tags
+- `sanitize.plainText(html)` - Strip all HTML
+- `sanitize.filename(name)` - Prevent path traversal (CWE-22)
+- `sanitize.url(url)` - Block dangerous protocols
+- `sanitize.csv(cell)` - Prevent CSV formula injection
+- `sanitize.header(value)` - Prevent CRLF injection (CWE-93)
+- `sanitize.email(email)` - Validate and normalize email
+- `sanitize.truncate(text, maxLength)` - Limit string length
+
+### Rate Limiting
+
+**ALWAYS apply rate limiting to API routes**:
+
+```typescript
+// ✅ CORRECT: Use withRateLimit HOC
+import { withRateLimit, RATE_LIMITS } from '@/lib/security/rate-limit';
+
+// Authentication endpoints (strictest)
+export const POST = withRateLimit(
+  async (request: Request) => {
+    // Handler logic
+  },
+  RATE_LIMITS.auth // 5 per 15 min
+);
+
+// Generation endpoints (expensive operations)
+export const POST = withRateLimit(
+  async (request: Request) => {
+    // Handler logic
+  },
+  RATE_LIMITS.generation // 20 per hour
+);
+
+// General API endpoints
+export const POST = withRateLimit(
+  async (request: Request) => {
+    // Handler logic
+  },
+  RATE_LIMITS.api // 100 per hour
+);
+
+// ❌ WRONG: No rate limiting
+export async function POST(request: Request) {
+  // Can be abused with unlimited requests!
+}
+```
+
+**Rate Limit Configurations**:
+
+| Type | Max Requests | Window | Purpose |
+|------|--------------|--------|---------|
+| `RATE_LIMITS.auth` | 5 | 15 min | Prevent brute force attacks (CWE-307) |
+| `RATE_LIMITS.generation` | 20 | 1 hour | Protect expensive AI operations |
+| `RATE_LIMITS.export` | 30 | 1 hour | Limit resource-intensive exports |
+| `RATE_LIMITS.api` | 100 | 1 hour | Prevent general API abuse (CWE-400) |
+
+**Custom Rate Limits**:
+
+```typescript
+// Custom configuration
+export const POST = withRateLimit(
+  async (request: Request) => {
+    // Handler logic
+  },
+  {
+    maxRequests: 50,
+    windowMs: 30 * 60 * 1000, // 30 minutes
+    message: 'Too many requests to this endpoint',
+  }
+);
+
+// User-based rate limiting (instead of IP)
+export const POST = withRateLimit(
+  async (request: Request) => {
+    // Handler logic
+  },
+  {
+    maxRequests: 100,
+    windowMs: 60 * 60 * 1000,
+    keyGenerator: (req) => {
+      const userId = req.headers.get('x-user-id');
+      return userId || 'anonymous';
+    },
+  }
+);
+```
+
+### Secrets Management
+
+**ALWAYS use the `env` module for environment variables**:
+
+```typescript
+// ✅ CORRECT: Use typed env module
+import { env } from '@/lib/env';
+
+const openaiKey = env.openai.apiKey;       // Type-safe, validated
+const supabaseUrl = env.supabase.url;       // Required, throws if missing
+const anthropicKey = env.anthropic.apiKey;  // Optional, may be undefined
+
+// ❌ WRONG: Use process.env directly
+const openaiKey = process.env.OPENAI_API_KEY; // Not type-safe
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!; // No validation
+```
+
+**NEVER hardcode secrets**:
+
+```typescript
+// ❌ WRONG: Hardcoded API key
+const OPENAI_KEY = 'sk-proj-abc123...';
+
+// ❌ WRONG: Committed in .env file
+// .env.local should NEVER be committed (in .gitignore)
+
+// ✅ CORRECT: Use environment variables
+import { env } from '@/lib/env';
+const apiKey = env.openai.apiKey;
+```
+
+**ALWAYS mask API keys in logs and errors**:
+
+```typescript
+// ✅ CORRECT: Mask sensitive data
+const maskApiKey = (key: string): string => {
+  if (key.length < 10) return '***';
+  return key.slice(0, 7) + '...' + key.slice(-4);
+};
+
+console.log('Using API key:', maskApiKey(apiKey));
+// Output: "sk-proj...3456"
+
+// ❌ WRONG: Log full API keys
+console.log('API Key:', apiKey); // Exposed in logs!
+```
+
+**NEVER expose API keys in HTTP responses**:
+
+```typescript
+// ✅ CORRECT: Return boolean flags
+return NextResponse.json({
+  openai: !!apiKeys.openai_key,
+  anthropic: !!apiKeys.anthropic_key,
+});
+
+// ❌ WRONG: Return actual keys
+return NextResponse.json({
+  openai_key: apiKeys.openai_key, // Exposed to client!
+});
+```
+
+**Environment Variable Classification**:
+
+| Prefix | Exposure | Usage |
+|--------|----------|-------|
+| `NEXT_PUBLIC_*` | ✅ Browser-safe | Public keys, URLs |
+| No prefix | ❌ Server-only | API keys, secrets |
+
+**Protected Secrets**:
+- `SUPABASE_SERVICE_ROLE_KEY` - Full database access (server-only)
+- `OPENAI_API_KEY` - AI generation (server-only, optional)
+- `ANTHROPIC_API_KEY` - AI generation (server-only, optional)
+
+**Public Keys** (safe to expose):
+- `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Limited via RLS
+
+### Database Security
+
+**API keys are encrypted at rest using pgcrypto**:
+
+```typescript
+// Store encrypted API keys (automatic encryption)
+await supabase.rpc('set_workbench_api_keys', {
+  workbench_uuid: workbenchId,
+  api_keys_json: {
+    openai_key: 'sk-proj-...',
+    anthropic_key: 'sk-ant-...',
+  },
+});
+
+// Retrieve encrypted API keys (automatic decryption)
+const { data: apiKeys } = await supabase.rpc('get_workbench_api_keys', {
+  workbench_uuid: workbenchId,
+});
+
+// Check if keys are configured (returns booleans, NOT keys)
+const { data: keyStatus } = await supabase.rpc('check_workbench_api_keys', {
+  workbench_uuid: workbenchId,
+});
+// Returns: { openai: true, anthropic: false }
+```
+
+**Encryption Implementation**:
+- **Algorithm**: PostgreSQL `pgp_sym_encrypt` (symmetric encryption)
+- **Storage**: `encrypted_api_keys` column (text)
+- **Functions**: `set_workbench_api_keys`, `get_workbench_api_keys`, `check_workbench_api_keys`
+- **Security**: Functions use `security definer` with RLS enforcement
+
+### Security Headers
+
+**Automatically applied to all routes** via `next.config.ts`:
+
+| Header | Value | Protection |
+|--------|-------|------------|
+| Content-Security-Policy | Restrictive CSP | XSS (CWE-79) |
+| X-Frame-Options | DENY | Clickjacking (CWE-1021) |
+| X-Content-Type-Options | nosniff | MIME sniffing (CWE-16) |
+| Strict-Transport-Security | max-age=31536000 | HTTPS enforcement (CWE-693) |
+| Referrer-Policy | strict-origin-when-cross-origin | URL leakage |
+| Permissions-Policy | Restrictive | Feature restriction |
+
+**CSP Configuration**:
+- `default-src 'self'` - Only same-origin resources
+- `script-src 'self' 'unsafe-inline' 'unsafe-eval'` - Next.js compatibility
+- `frame-ancestors 'none'` - Prevent embedding
+- `object-src 'none'` - Disallow plugins
+- `upgrade-insecure-requests` - Force HTTPS
+
+### Error Handling
+
+**Use standardized error classes**:
+
+```typescript
+// ✅ CORRECT: Use error classes
+import { handleApiError, NotFoundError, UnauthorizedError } from '@/lib/api/errors';
+
+export async function GET(request: Request) {
+  try {
+    const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      throw new UnauthorizedError();
+    }
+
+    const { data: project } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('id', projectId)
+      .single();
+
+    if (!project) {
+      throw new NotFoundError('Project');
+    }
+
+    return NextResponse.json({ data: project });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
+// ❌ WRONG: Generic errors, expose details
+export async function GET(request: Request) {
+  throw new Error(`Project ${projectId} not found in database`);
+  // Exposes internal details!
+}
+```
+
+**Available Error Classes**:
+- `UnauthorizedError()` - 401 (not authenticated)
+- `ForbiddenError(resource)` - 403 (not authorized)
+- `NotFoundError(resource)` - 404 (resource not found)
+- `ValidationError(message, details)` - 400 (invalid input)
+- `RateLimitError(retryAfter)` - 429 (too many requests)
+
+### Security Checklist for New Features
+
+Before implementing a new feature, review:
+
+1. **Authentication**: Does it need auth? Add `user` check.
+2. **Authorization**: Does RLS protect the data? Use `createServerClient()`.
+3. **Validation**: Validate all inputs with Zod schemas.
+4. **Sanitization**: Sanitize user content before rendering.
+5. **Rate Limiting**: Apply rate limits to prevent abuse.
+6. **Secrets**: Use `env` module, never hardcode keys.
+7. **Testing**: Add security tests for new endpoints/features.
+
+### Security Resources
+
+**Documentation**:
+- [Security Checklist](docs/security/SECURITY_CHECKLIST.md) - Complete review guide
+- [Sprint 0 Summary](docs/security/sprint-0-summary.md) - Initial assessment
+- [Sprint 1 Summary](docs/security/sprint-1-summary.md) - Headers & sanitization
+- [Sprint 2 Summary](docs/security/sprint-2-summary.md) - Validation & rate limiting
+- [Sprint 3 Summary](docs/security/sprint-3-summary.md) - Secrets management
+- [Sprint 4 Summary](docs/security/sprint-4-summary.md) - Documentation
+
+**Commands**:
+```bash
+# Run all security checks
+npm run security:all
+
+# Individual checks
+npm run security:scan     # ESLint security rules
+npm run security:deps     # Dependency vulnerabilities  
+npm run security:secrets  # Secrets detection
+
+# Security tests
+npm test tests/security/  # All 159 security tests
+```
+
+**Libraries Used**:
+- **Zod**: Input validation ([lib/validation/schemas.ts](lib/validation/schemas.ts))
+- **DOMPurify**: HTML sanitization ([lib/security/sanitize.ts](lib/security/sanitize.ts))
+- **pgcrypto**: Database encryption (Supabase extension)
+- **Gitleaks**: Secrets detection ([.gitleaks.toml](.gitleaks.toml))
+
+**External Resources**:
+- [OWASP Top 10](https://owasp.org/www-project-top-ten/)
+- [Next.js Security](https://nextjs.org/docs/app/building-your-application/configuring/security)
+- [Supabase Security](https://supabase.com/docs/guides/platform/security)
+
+### CWEs Addressed
+
+Security implementation addresses these Common Weakness Enumerations:
+
+| CWE | Vulnerability | Protection |
+|-----|--------------|------------|
+| CWE-79 | Cross-Site Scripting (XSS) | CSP + DOMPurify sanitization |
+| CWE-89 | SQL Injection | Parameterized queries (Supabase) |
+| CWE-22 | Path Traversal | Filename sanitization |
+| CWE-93 | CRLF Injection | Header sanitization |
+| CWE-200 | Information Exposure | Generic errors, key masking |
+| CWE-307 | Brute Force | Auth rate limiting (5 per 15 min) |
+| CWE-312 | Cleartext Storage | pgcrypto encryption |
+| CWE-400 | Resource Exhaustion | Input limits + rate limiting |
+| CWE-522 | Insufficiently Protected Credentials | Encrypted storage + access control |
+| CWE-798 | Hard-coded Credentials | Gitleaks scanning, env validation |
+| CWE-1021 | Clickjacking | X-Frame-Options + CSP |
+
