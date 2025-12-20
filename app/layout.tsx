@@ -5,6 +5,7 @@ import { UserMenu } from '@/components/auth/user-menu';
 import { Logo } from '@/components/ui/logo';
 import Link from 'next/link';
 import { Toaster } from 'sonner';
+import { Analytics } from '@vercel/analytics/next';
 
 export const metadata: Metadata = {
   title: "Sageloop - Intelligent Prompt Engineering",
@@ -34,6 +35,7 @@ export default async function RootLayout({
         )}
         {children}
         <Toaster />
+        <Analytics />
       </body>
     </html>
   );
