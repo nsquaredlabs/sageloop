@@ -107,7 +107,9 @@ describe("Prompt Injection Defenses", () => {
 
       expect(result.isValid).toBe(true); // Medium risk, not blocked
       expect(result.risk).toBe("medium");
-      expect(result.flags.some((flag) => flag.includes("exceeds"))).toBe(true);
+      expect(
+        result.flags.some((flag: string) => flag.includes("exceeds")),
+      ).toBe(true);
     });
 
     it("should flag delimiter confusion attempts", () => {
@@ -222,7 +224,9 @@ describe("Prompt Injection Defenses", () => {
 
       expect(result.isValid).toBe(true); // Medium risk
       expect(result.risk).toBe("medium");
-      expect(result.flags.some((flag) => flag.includes("exceeds"))).toBe(true);
+      expect(
+        result.flags.some((flag: string) => flag.includes("exceeds")),
+      ).toBe(true);
     });
   });
 
@@ -393,7 +397,9 @@ Line 3`;
       const result = validateExtractionResponse(largeResponse);
 
       expect(result.isValid).toBe(false);
-      expect(result.flags.some((flag) => flag.includes("exceeds"))).toBe(true);
+      expect(
+        result.flags.some((flag: string) => flag.includes("exceeds")),
+      ).toBe(true);
     });
 
     it("should reject invalid JSON", () => {
@@ -436,7 +442,9 @@ Line 3`;
       const result = validateGenerationOutput(longOutput);
 
       expect(result.isValid).toBe(false);
-      expect(result.flags.some((flag) => flag.includes("exceeds"))).toBe(true);
+      expect(
+        result.flags.some((flag: string) => flag.includes("exceeds")),
+      ).toBe(true);
     });
 
     it("should flag excessive repetitive content", () => {

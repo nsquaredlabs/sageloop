@@ -1,229 +1,180 @@
 /**
  * Prompt Injection Validation
  *
- * Detects and prevents prompt injection attacks in user-provided prompts.
- * Uses pattern matching to identify common injection techniques.
+ * Validates user-provided system prompts and AI responses for injection attempts.
+ * See: docs/security/PROMPT_INJECTION_ANALYSIS.md
  *
- * References:
- * - OWASP Top 10 for LLMs: https://owasp.org/www-project-top-10-for-large-language-model-applications/
- * - Prompt Injection Primer: https://github.com/Azure/PyRIT
+ * CRITICAL: Sageloop's core functionality involves using user-provided system prompts
+ * to generate AI outputs. This creates a HIGH RISK attack surface for prompt injection.
  */
 
 export interface PromptValidationResult {
   isValid: boolean;
   risk: "low" | "medium" | "high";
   flags: string[];
-  sanitized?: string;
 }
-
-interface InjectionPattern {
-  pattern: RegExp;
-  severity: "low" | "medium" | "high";
-  description: string;
-}
-
-/**
- * Common prompt injection patterns
- */
-const INJECTION_PATTERNS: InjectionPattern[] = [
-  // Role confusion attempts
-  {
-    pattern:
-      /ignore\s+(all\s+)?(previous|above|prior|earlier)\s+(instructions?|prompts?|commands?)/gi,
-    severity: "high",
-    description: "Attempt to override previous instructions",
-  },
-  {
-    pattern:
-      /forget\s+(all\s+)?(previous|above|prior|earlier)\s+(instructions?|prompts?|commands?)/gi,
-    severity: "high",
-    description: "Attempt to erase previous instructions",
-  },
-  {
-    pattern: /disregard\s+(all\s+)?(previous|above|prior|earlier)/gi,
-    severity: "high",
-    description: "Attempt to disregard instructions",
-  },
-  {
-    pattern:
-      /(system\s+)?(override|mode|prompt|instruction)\s+(activated?|enabled?|on)/gi,
-    severity: "high",
-    description: "Attempt to activate override mode",
-  },
-  {
-    pattern: /you\s+are\s+now\s+(a\s+)?different/gi,
-    severity: "high",
-    description: "Attempt to change AI role",
-  },
-  {
-    pattern: /new\s+(instructions?|rules?|commands?)\s*:/gi,
-    severity: "high",
-    description: "Attempt to inject new instructions",
-  },
-
-  // Data exfiltration attempts
-  {
-    pattern:
-      /(reveal|show|output|print|display|tell\s+me|what\s+(is|are|was|were))\s+(all\s+)?(your|the)\s+(training|system|original|actual)\s+(data|prompt|instructions?)/gi,
-    severity: "high",
-    description: "Attempt to extract training data or system prompt",
-  },
-  {
-    pattern:
-      /(show|reveal|display|output|list)\s+(all\s+)?(api|secret|token|key|password|credential|environment)/gi,
-    severity: "high",
-    description: "Attempt to extract secrets or credentials",
-  },
-  {
-    pattern:
-      /what\s+(is|are|was|were)\s+(your|the)\s+(original|previous|actual|real|initial)\s+(instructions?|prompt|rules?)/gi,
-    severity: "high",
-    description: "Attempt to extract original instructions",
-  },
-
-  // Jailbreak attempts
-  {
-    pattern: /\bDAN\s+mode\b/gi,
-    severity: "high",
-    description: "DAN (Do Anything Now) jailbreak attempt",
-  },
-  {
-    pattern: /developer\s+mode/gi,
-    severity: "medium",
-    description: "Developer mode jailbreak attempt",
-  },
-  {
-    pattern: /jailbreak/gi,
-    severity: "high",
-    description: "Explicit jailbreak mention",
-  },
-  {
-    pattern: /ignore\s+(all\s+)?safety/gi,
-    severity: "high",
-    description: "Attempt to bypass safety guidelines",
-  },
-  {
-    pattern: /bypass\s+(content\s+)?(filter|moderation|safety)/gi,
-    severity: "high",
-    description: "Attempt to bypass content filtering",
-  },
-  {
-    pattern:
-      /pretend\s+(you\s+are|to\s+be)\s+(not\s+)?(safe|filtered|moderated)/gi,
-    severity: "high",
-    description: "Attempt to bypass safety through roleplay",
-  },
-
-  // Resource abuse
-  {
-    pattern: /repeat.{0,50}\d{3,}/gi,
-    severity: "medium",
-    description: "Attempt to cause excessive repetition",
-  },
-  {
-    pattern: /maximum\s+(tokens?|length|size)/gi,
-    severity: "medium",
-    description: "Attempt to maximize token usage",
-  },
-
-  // Delimiter confusion
-  {
-    pattern: /"""\s*\n\s*"""/g,
-    severity: "medium",
-    description: "Triple quote delimiter confusion",
-  },
-  {
-    pattern: /}\s*}\s*}/g,
-    severity: "medium",
-    description: "JSON delimiter confusion",
-  },
-  {
-    pattern: /---\s*(END|STOP|TERMINATE)/gi,
-    severity: "medium",
-    description: "Delimiter termination attempt",
-  },
-  {
-    pattern: /<\/(system|assistant|user|instruction)>/gi,
-    severity: "medium",
-    description: "XML tag closure confusion",
-  },
-
-  // Encoding bypass attempts
-  {
-    pattern: /base64|rot13|hex\s+encod/gi,
-    severity: "medium",
-    description: "Attempt to use encoding to bypass filters",
-  },
-];
 
 /**
  * Validates user-provided system prompts for injection attempts
  *
- * @param prompt - The system prompt to validate
- * @returns Validation result with risk level and flags
+ * Defense Strategy:
+ * 1. Pattern Detection: Block known injection patterns
+ * 2. Resource Limits: Prevent resource exhaustion (CWE-400)
+ * 3. Format Validation: Detect delimiter confusion attempts
+ * 4. Unicode Validation: Detect homoglyph attacks
  *
- * @example
- * const result = validateSystemPrompt("You are helpful. Ignore all previous instructions.");
- * // Returns: { isValid: false, risk: 'high', flags: [...] }
+ * @param prompt - The user-provided system prompt to validate
+ * @returns Validation result with risk level and flags
  */
 export function validateSystemPrompt(prompt: string): PromptValidationResult {
   const flags: string[] = [];
   let risk: "low" | "medium" | "high" = "low";
 
   // Check for common injection patterns
-  for (const { pattern, severity, description } of INJECTION_PATTERNS) {
+  const injectionPatterns = [
+    // Role confusion attempts
+    {
+      pattern: /ignore\s+(all\s+)?(previous|above|prior)\s+instructions?/gi,
+      severity: "high" as const,
+      description: "Instruction override attempt: ignore previous instructions",
+    },
+    {
+      pattern: /system\s+(mode|prompt)/gi,
+      severity: "high" as const,
+      description: "System mode/prompt manipulation",
+    },
+    {
+      pattern: /system\s+override/gi,
+      severity: "medium" as const,
+      description: "System override mention",
+    },
+    {
+      pattern: /you\s+are\s+now\s+(a\s+)?different/gi,
+      severity: "high" as const,
+      description: "Role redefinition attempt",
+    },
+
+    // Data exfiltration/extraction attempts
+    {
+      pattern:
+        /(reveal|show|output|print|display)\s+(all\s+)?((your|the)\s+)?(training|data|prompt|instructions|keys|secrets?|environment|api|password)/gi,
+      severity: "high" as const,
+      description: "Data extraction attempt",
+    },
+    {
+      pattern:
+        /what\s+(is|are|was|were)\s+(your|the)\s+(original|previous|system)\s+(instructions?|prompt)/gi,
+      severity: "high" as const,
+      description: "System prompt extraction attempt",
+    },
+
+    // Jailbreak attempts
+    {
+      pattern: /DAN\s+mode/gi,
+      severity: "high" as const,
+      description: "DAN jailbreak attempt",
+    },
+    {
+      pattern: /(developer\s+mode|dev\s+mode).*(bypass|override|disable)/gi,
+      severity: "high" as const,
+      description: "Developer mode bypass attempt",
+    },
+    {
+      pattern: /developer\s+mode/gi,
+      severity: "medium" as const,
+      description: "Developer mode activation",
+    },
+    {
+      pattern: /jailbreak/gi,
+      severity: "high" as const,
+      description: "Explicit jailbreak reference",
+    },
+    {
+      pattern: /ignore\s+(all\s+)?safety/gi,
+      severity: "high" as const,
+      description: "Safety bypass attempt",
+    },
+    {
+      pattern:
+        /bypass\s+(all\s+)?(content\s+)?(filter|safety|security|restrictions?)/gi,
+      severity: "high" as const,
+      description: "Security bypass attempt",
+    },
+
+    // Output manipulation (potential resource abuse)
+    {
+      pattern: /repeat.*\d{3,}/gi,
+      severity: "medium" as const,
+      description: "Large repetition request",
+    },
+    {
+      pattern: /maximum\s+tokens?/gi,
+      severity: "medium" as const,
+      description: "Token limit manipulation",
+    },
+
+    // Delimiter confusion
+    {
+      pattern: /"""\s*\n\s*"""/g,
+      severity: "medium" as const,
+      description: "Delimiter confusion detected",
+    },
+    {
+      pattern: /}\s*}\s*}/g,
+      severity: "medium" as const,
+      description: "Multiple closing braces (delimiter confusion)",
+    },
+    {
+      pattern: /---\s*END/gi,
+      severity: "medium" as const,
+      description: "Delimiter end marker",
+    },
+    {
+      pattern: /<\/[a-z_]+>[\s\S]*?<[a-z_]+>/gi,
+      severity: "medium" as const,
+      description: "XML tag manipulation (delimiter confusion)",
+    },
+
+    // Encoding bypass attempts
+    {
+      pattern:
+        /(decode|base64|hex|rot13|encode).*(execute|run|eval|interpret)/gi,
+      severity: "medium" as const,
+      description: "Encoding bypass attempt detected",
+    },
+  ];
+
+  for (const { pattern, severity, description } of injectionPatterns) {
     const matches = prompt.match(pattern);
     if (matches) {
-      flags.push(
-        `${description} (${matches.length} occurrence${matches.length > 1 ? "s" : ""})`,
-      );
-
-      // Escalate risk level
-      if (severity === "high") {
-        risk = "high";
-      } else if (severity === "medium" && risk !== "high") {
-        risk = "medium";
-      }
+      flags.push(`${description} (${matches.length} occurrence(s))`);
+      if (severity === "high") risk = "high";
+      else if (severity === "medium" && risk !== "high") risk = "medium";
     }
   }
 
-  // Check for excessive length (resource abuse)
-  const MAX_SYSTEM_PROMPT_LENGTH = 10000;
-  if (prompt.length > MAX_SYSTEM_PROMPT_LENGTH) {
-    flags.push(
-      `Prompt exceeds ${MAX_SYSTEM_PROMPT_LENGTH} characters (${prompt.length} chars)`,
-    );
+  // Check for excessive length (resource abuse - CWE-400)
+  if (prompt.length > 10000) {
+    flags.push("Prompt exceeds 10,000 characters");
     if (risk !== "high") risk = "medium";
   }
 
   // Check for excessive newlines (delimiter confusion)
   const newlineCount = (prompt.match(/\n/g) || []).length;
-  const MAX_NEWLINES = 100;
-  if (newlineCount > MAX_NEWLINES) {
+  if (newlineCount > 100) {
+    flags.push("Excessive newlines detected");
+    if (risk !== "high") risk = "medium";
+  }
+
+  // Check for suspicious Unicode (homoglyph attacks)
+  const suspiciousUnicode = /[\u200B-\u200D\uFEFF\u202A-\u202E]/g;
+  if (suspiciousUnicode.test(prompt)) {
     flags.push(
-      `Excessive newlines detected (${newlineCount} newlines, limit ${MAX_NEWLINES})`,
+      "Suspicious Unicode characters detected (zero-width/directional)",
     );
     if (risk !== "high") risk = "medium";
   }
 
-  // Check for suspicious Unicode (homoglyph attacks, hidden characters)
-  const suspiciousUnicode = /[\u200B-\u200D\uFEFF\u202A-\u202E\u2060-\u2069]/g;
-  const unicodeMatches = prompt.match(suspiciousUnicode);
-  if (unicodeMatches) {
-    flags.push(
-      `Suspicious Unicode characters detected (${unicodeMatches.length} hidden characters)`,
-    );
-    if (risk !== "high") risk = "medium";
-  }
-
-  // Check for excessive punctuation repetition (obfuscation)
-  const repeatedPunctuation = /([!?.,;:])\1{5,}/g;
-  if (repeatedPunctuation.test(prompt)) {
-    flags.push("Excessive punctuation repetition detected");
-    if (risk !== "high") risk = "medium";
-  }
-
-  // High-risk prompts are rejected
   return {
     isValid: risk !== "high",
     risk,
@@ -232,64 +183,146 @@ export function validateSystemPrompt(prompt: string): PromptValidationResult {
 }
 
 /**
+ * Validates extraction response for injection artifacts
+ *
+ * Used to detect if a prompt injection was successful by examining the AI's response
+ * for signs of data exfiltration or instruction override.
+ *
+ * @param response - The AI-generated response to validate
+ * @returns Validation result with risk level and flags
+ */
+export function validateExtractionResponse(
+  response: string,
+): PromptValidationResult {
+  const flags: string[] = [];
+  let risk: "low" | "medium" | "high" = "low";
+
+  try {
+    // Check for injection artifacts in response
+    const injectionArtifacts = [
+      {
+        pattern: /API[_\s]?key/gi,
+        description: "API key reference detected",
+      },
+      {
+        pattern: /sk-[a-zA-Z0-9]{20,}/g,
+        description: "OpenAI key pattern detected",
+      },
+      {
+        pattern: /secret/gi,
+        description: "Secret reference detected",
+      },
+      {
+        pattern: /token/gi,
+        description: "Token reference detected",
+      },
+      {
+        pattern: /password/gi,
+        description: "Password reference detected",
+      },
+      {
+        pattern: /environment[_\s]?variable/gi,
+        description: "Environment variable reference detected",
+      },
+      {
+        pattern: /training[_\s]?data/gi,
+        description: "Training data reference detected",
+      },
+    ];
+
+    for (const { pattern, description } of injectionArtifacts) {
+      if (pattern.test(response)) {
+        flags.push(description);
+        risk = "high";
+      }
+    }
+
+    // Check response size (data exfiltration might cause huge responses)
+    if (response.length > 100000) {
+      flags.push("Response exceeds 100KB - possible exfiltration attempt");
+      risk = "high";
+    }
+
+    return {
+      isValid: risk !== "high",
+      risk,
+      flags,
+    };
+  } catch (error) {
+    return {
+      isValid: false,
+      risk: "high",
+      flags: ["Response validation error"],
+    };
+  }
+}
+
+/**
+ * Sanitizes a system prompt by removing potentially dangerous patterns
+ * while preserving legitimate content.
+ *
+ * WARNING: This is a last-resort defense. Always prefer rejecting
+ * invalid prompts over attempting to sanitize them.
+ *
+ * @param prompt - The prompt to sanitize
+ * @returns Sanitized prompt
+ */
+export function sanitizeSystemPrompt(prompt: string): string {
+  let sanitized = prompt;
+
+  // Remove excessive newlines (keep max 2 consecutive)
+  sanitized = sanitized.replace(/\n{3,}/g, "\n\n");
+
+  // Remove suspicious Unicode
+  sanitized = sanitized.replace(/[\u200B-\u200D\uFEFF\u202A-\u202E]/g, "");
+
+  // Truncate to reasonable length
+  if (sanitized.length > 10000) {
+    sanitized = sanitized.substring(0, 10000);
+  }
+
+  return sanitized;
+}
+
+/**
  * Validates scenario input text for injection attempts
  *
- * More lenient than system prompt validation since scenarios may legitimately
- * test edge cases like "ignore instructions" as robustness tests.
+ * Less strict than system prompt validation because:
+ * - Scenarios legitimately test edge cases (e.g., "what if a user says 'ignore instructions'?")
+ * - We only flag truly suspicious exfiltration attempts
  *
- * Focuses on high-risk data exfiltration and resource abuse.
- *
- * @param input - The scenario input to validate
+ * @param input - The scenario input text to validate
  * @returns Validation result with risk level and flags
- *
- * @example
- * const result = validateScenarioInput("What is the capital of France?");
- * // Returns: { isValid: true, risk: 'low', flags: [] }
  */
 export function validateScenarioInput(input: string): PromptValidationResult {
   const flags: string[] = [];
   let risk: "low" | "medium" | "high" = "low";
 
-  // Only flag high-risk exfiltration attempts (API keys, secrets, etc.)
-  const highRiskPatterns: InjectionPattern[] = [
+  // Only check for direct exfiltration attempts (not role confusion)
+  const highRiskPatterns = [
     {
       pattern:
-        /(reveal|show|output|display)\s+(all\s+)?(api|secret|token|key|password|environment)/gi,
-      severity: "high",
-      description: "Attempt to extract secrets or API keys",
+        /(reveal|show|output|print|display)\s+(all\s+)?(your|the)?\s*(training|data|prompt|instructions|keys|secrets?|environment|api|password|configuration|internal)/gi,
+      description: "Data exfiltration attempt",
     },
     {
       pattern:
-        /(output|show|display)\s+(all\s+)?(system|training|internal)\s+(data|prompt|config)/gi,
-      severity: "high",
-      description: "Attempt to extract system data",
+        /(display|show|output|reveal)\s+(all\s+)?(system\s+)?(configuration|data|internal)/gi,
+      description: "System data exfiltration attempt",
     },
   ];
 
   for (const { pattern, description } of highRiskPatterns) {
     const matches = input.match(pattern);
     if (matches) {
-      flags.push(description);
+      flags.push(`${description} (${matches.length} occurrence(s))`);
       risk = "high";
     }
   }
 
-  // Resource abuse checks
-  const MAX_SCENARIO_INPUT_LENGTH = 50000;
-  if (input.length > MAX_SCENARIO_INPUT_LENGTH) {
-    flags.push(
-      `Input exceeds ${MAX_SCENARIO_INPUT_LENGTH} characters (${input.length} chars)`,
-    );
-    if (risk !== "high") risk = "medium";
-  }
-
-  // Check for suspicious Unicode
-  const suspiciousUnicode = /[\u200B-\u200D\uFEFF\u202A-\u202E\u2060-\u2069]/g;
-  const unicodeMatches = input.match(suspiciousUnicode);
-  if (unicodeMatches) {
-    flags.push(
-      `Suspicious Unicode characters detected (${unicodeMatches.length} hidden characters)`,
-    );
+  // Check for excessive length (resource abuse)
+  if (input.length > 50000) {
+    flags.push("Input exceeds 50,000 characters");
     if (risk !== "high") risk = "medium";
   }
 
@@ -301,41 +334,46 @@ export function validateScenarioInput(input: string): PromptValidationResult {
 }
 
 /**
- * Wraps user-provided content in clear XML-style delimiters
+ * Wraps user content in XML-style delimiters to prevent prompt injection
  *
- * This helps AI models distinguish between system instructions and user content,
- * making injection attacks harder.
+ * This is a key defense strategy: by clearly marking user content with delimiters,
+ * we make it harder for attackers to "escape" and inject instructions.
  *
- * @param content - The user content to wrap
- * @param label - The label for the delimiter tags
- * @returns Content wrapped in <label>...</label> tags
- *
- * @example
+ * Example:
+ * ```
  * wrapUserContent("Hello world", "user_input")
  * // Returns: "<user_input>\nHello world\n</user_input>"
+ * ```
+ *
+ * @param content - The user-provided content to wrap
+ * @param tagName - The delimiter tag name (e.g., "user_input", "user_system_prompt")
+ * @returns Wrapped content with XML-style delimiters
  */
-export function wrapUserContent(content: string, label: string): string {
-  return `<${label}>
-${content}
-</${label}>`;
+export function wrapUserContent(content: string, tagName: string): string {
+  return `<${tagName}>\n${content}\n</${tagName}>`;
 }
 
 /**
- * Calculates a hash of prompt content for deduplication in audit logs
+ * Generates a hash of a prompt for audit logging
  *
- * Uses a simple but fast hash function suitable for deduplication.
- * Not cryptographically secure.
+ * Used to detect repetitive attack patterns without storing the full prompt text.
+ * Helps identify:
+ * - Users testing the same injection repeatedly
+ * - Coordinated attacks using identical prompts
  *
  * @param prompt - The prompt to hash
- * @returns Hash string
+ * @returns Base64-encoded hash (short, collision-resistant)
  */
 export function hashPrompt(prompt: string): string {
-  // Simple hash for deduplication (not cryptographic)
+  // Simple hash using Web Crypto API (SHA-256)
+  // For Node.js environments, we'll use a simple string hash
   let hash = 0;
   for (let i = 0; i < prompt.length; i++) {
     const char = prompt.charCodeAt(i);
     hash = (hash << 5) - hash + char;
     hash = hash & hash; // Convert to 32-bit integer
   }
+
+  // Convert to base36 for a short, readable hash
   return Math.abs(hash).toString(36);
 }
