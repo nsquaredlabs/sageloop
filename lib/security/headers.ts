@@ -139,6 +139,8 @@ export const devContentSecurityPolicy = {
   ],
   "connect-src": [
     ...contentSecurityPolicy["connect-src"],
+    "http://127.0.0.1:54321", // Local Supabase
+    "http://localhost:54321", // Local Supabase (localhost variant)
     "ws:", // WebSocket for hot reload
     "wss:", // Secure WebSocket
   ],
