@@ -384,7 +384,9 @@ IMPORTANT:
     }
 
     // Calculate confidence score based on number of ratings
-    const confidenceScore = Math.min(0.9, ratedOutputs.length / 20);
+    // Uses shared calculation from lib/metrics to ensure consistency across app
+    const { calculateConfidenceScore } = await import("@/lib/metrics");
+    const confidenceScore = calculateConfidenceScore(ratedOutputs.length);
 
     // Save extraction to database with snapshots
     const { data: extraction, error: extractionError } = await supabase
