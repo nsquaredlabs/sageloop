@@ -26,6 +26,7 @@ import {
   Layout,
   FileText as FileTextIcon,
   AlertTriangle,
+  Star,
 } from "lucide-react";
 import { DimensionCard } from "@/components/dimension-card";
 import { SampleSizeAlert } from "@/components/sample-size-alert";
@@ -190,6 +191,12 @@ export default async function InsightsPage({
 
             {/* Export Buttons */}
             <div className="flex gap-2">
+              <Button variant="default" asChild>
+                <Link href={`/projects/${id}/golden-examples`}>
+                  <Star className="mr-2 h-4 w-4" />
+                  Golden Examples
+                </Link>
+              </Button>
               <Button variant="outline" asChild>
                 <Link href={`/projects/${id}/insights/history`}>
                   <History className="mr-2 h-4 w-4" />
