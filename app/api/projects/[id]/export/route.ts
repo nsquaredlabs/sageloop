@@ -3,6 +3,8 @@ import { createServerClient } from "@/lib/supabase";
 import { parseId } from "@/lib/utils";
 import type { ModelConfig, ExtractionCriteria } from "@/types/database";
 import { sanitize } from "@/lib/security/sanitize";
+import { generatePytestSuite } from "@/lib/export/pytest-template";
+import { generateJestSuite } from "@/lib/export/jest-template";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -22,7 +24,16 @@ export async function GET(request: Request, { params }: RouteParams) {
     const { id: projectIdString } = await params;
     const projectId = parseId(projectIdString);
     const { searchParams } = new URL(request.url);
-    const format = searchParams.get("format") || "json"; // 'json' or 'markdown'
+    const format = searchParams.get("format") || "json"; // 'json', 'markdown', 'pytest', or 'jest'
+
+    // Validate format parameter
+    const validFormats = ["json", "markdown", "pytest", "jest"];
+    if (!validFormats.includes(format)) {
+      return NextResponse.json(
+        { error: `Invalid format. Must be one of: ${validFormats.join(", ")}` },
+        { status: 400 },
+      );
+    }
 
     // Fetch project details (RLS ensures user has access)
     const { data: project, error: projectError } = await supabase
@@ -125,6 +136,8 @@ export async function GET(request: Request, { params }: RouteParams) {
       .sort((a: any, b: any) => a.ratings[0].stars - b.ratings[0].stars)
       .slice(0, 10); // Get more negative examples for analysis
 
+    const safeFilename = sanitize.filename(project.name);
+
     if (format === "markdown") {
       // Generate Markdown documentation
       const markdown = generateMarkdownDoc(
@@ -135,12 +148,92 @@ export async function GET(request: Request, { params }: RouteParams) {
         filteredNegative,
       );
 
-      const safeFilename = sanitize.filename(project.name);
-
       return new NextResponse(markdown, {
         headers: {
           "Content-Type": "text/markdown",
           "Content-Disposition": `attachment; filename="${safeFilename}_quality_spec.md"`,
+        },
+      });
+    } else if (format === "pytest") {
+      // Generate Pytest test suite
+      const exportData = {
+        project: {
+          name: project.name,
+          model_config: {
+            model: modelConfig.model || "unknown",
+            temperature: modelConfig.temperature || 0.7,
+            system_prompt: modelConfig.system_prompt,
+          },
+        },
+        golden_examples: filteredGolden
+          .filter((ex: any) => ex.ratings && ex.ratings.length > 0)
+          .map((ex: any) => ({
+            input: ex.scenario.input_text,
+            output: ex.output_text,
+            rating: ex.ratings[0].stars,
+            feedback: ex.ratings[0].feedback_text,
+            tags: ex.ratings[0].tags,
+          })),
+        negative_examples: filteredNegative
+          .filter((ex: any) => ex.ratings && ex.ratings.length > 0)
+          .map((ex: any) => ({
+            input: ex.scenario.input_text,
+            output: ex.output_text,
+            rating: ex.ratings[0].stars,
+            why_failed: ex.ratings[0].feedback_text,
+            suggested_fix: null,
+          })),
+        failure_analysis: criteria.failure_analysis || null,
+        extraction: { dimensions: criteria.dimensions || null },
+      };
+
+      const pytestSuite = generatePytestSuite(exportData);
+
+      return new NextResponse(pytestSuite, {
+        headers: {
+          "Content-Type": "text/x-python",
+          "Content-Disposition": `attachment; filename="test_${safeFilename}.py"`,
+        },
+      });
+    } else if (format === "jest") {
+      // Generate Jest test suite
+      const exportData = {
+        project: {
+          name: project.name,
+          model_config: {
+            model: modelConfig.model || "unknown",
+            temperature: modelConfig.temperature || 0.7,
+            system_prompt: modelConfig.system_prompt,
+          },
+        },
+        golden_examples: filteredGolden
+          .filter((ex: any) => ex.ratings && ex.ratings.length > 0)
+          .map((ex: any) => ({
+            input: ex.scenario.input_text,
+            output: ex.output_text,
+            rating: ex.ratings[0].stars,
+            feedback: ex.ratings[0].feedback_text,
+            tags: ex.ratings[0].tags,
+          })),
+        negative_examples: filteredNegative
+          .filter((ex: any) => ex.ratings && ex.ratings.length > 0)
+          .map((ex: any) => ({
+            input: ex.scenario.input_text,
+            output: ex.output_text,
+            rating: ex.ratings[0].stars,
+            why_failed: ex.ratings[0].feedback_text,
+            suggested_fix: null,
+          })),
+        failure_analysis: criteria.failure_analysis || null,
+        extraction: { dimensions: criteria.dimensions || null },
+      };
+
+      const jestSuite = generateJestSuite(exportData);
+
+      return new NextResponse(jestSuite, {
+        headers: {
+          "Content-Type": "text/javascript",
+          "Content-Disposition": `attachment; filename="${safeFilename}.test.ts"`,
         },
       });
     } else {
@@ -152,8 +245,6 @@ export async function GET(request: Request, { params }: RouteParams) {
         filteredGolden,
         filteredNegative,
       );
-
-      const safeFilename = sanitize.filename(project.name);
 
       return new NextResponse(JSON.stringify(testSuite, null, 2), {
         headers: {
