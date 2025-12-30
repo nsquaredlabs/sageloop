@@ -3,9 +3,15 @@ import { createServerClient } from "@/lib/supabase";
 import { GoldenExamplesTable } from "@/components/golden-examples-table";
 import { GoldenExamplesFilters } from "@/components/golden-examples-filters";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { notFound, redirect } from "next/navigation";
-import { Star, FileJson, FileText } from "lucide-react";
-import Link from "next/link";
+import { Star, FileJson, FileText, Download } from "lucide-react";
 import { z } from "zod";
 import { parseId } from "@/lib/utils";
 
@@ -243,20 +249,41 @@ export default async function GoldenExamplesPage({
               {completeExamples.length !== 1 ? "s" : ""})
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" asChild>
-              <Link href={`/api/projects/${id}/export?format=json`}>
-                <FileJson className="mr-2 h-4 w-4" />
-                Export JSON
-              </Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link href={`/api/projects/${id}/export?format=markdown`}>
-                <FileText className="mr-2 h-4 w-4" />
-                Export Spec
-              </Link>
-            </Button>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Download className="mr-2 h-4 w-4" />
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <a href={`/api/projects/${id}/export?format=json`}>
+                  <FileJson className="mr-2 h-4 w-4" />
+                  JSON Format
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href={`/api/projects/${id}/export?format=markdown`}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Markdown Spec
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <a href={`/api/projects/${id}/export?format=pytest`}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  pytest (Python)
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href={`/api/projects/${id}/export?format=jest`}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Jest (TypeScript)
+                </a>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

@@ -11,6 +11,13 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
   TrendingUp,
   TrendingDown,
   Lightbulb,
@@ -27,6 +34,7 @@ import {
   FileText as FileTextIcon,
   AlertTriangle,
   Star,
+  Download,
 } from "lucide-react";
 import { DimensionCard } from "@/components/dimension-card";
 import { SampleSizeAlert } from "@/components/sample-size-alert";
@@ -203,18 +211,41 @@ export default async function InsightsPage({
                   View History
                 </Link>
               </Button>
-              <Button variant="outline" asChild>
-                <a href={`/api/projects/${id}/export?format=json`} download>
-                  <FileJson className="mr-2 h-4 w-4" />
-                  Export JSON
-                </a>
-              </Button>
-              <Button variant="outline" asChild>
-                <a href={`/api/projects/${id}/export?format=markdown`} download>
-                  <FileText className="mr-2 h-4 w-4" />
-                  Export Spec
-                </a>
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline">
+                    <Download className="mr-2 h-4 w-4" />
+                    Export
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem asChild>
+                    <a href={`/api/projects/${id}/export?format=json`}>
+                      <FileJson className="mr-2 h-4 w-4" />
+                      JSON Format
+                    </a>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <a href={`/api/projects/${id}/export?format=markdown`}>
+                      <FileText className="mr-2 h-4 w-4" />
+                      Markdown Spec
+                    </a>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <a href={`/api/projects/${id}/export?format=pytest`}>
+                      <FileText className="mr-2 h-4 w-4" />
+                      pytest (Python)
+                    </a>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <a href={`/api/projects/${id}/export?format=jest`}>
+                      <FileText className="mr-2 h-4 w-4" />
+                      Jest (TypeScript)
+                    </a>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
