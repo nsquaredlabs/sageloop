@@ -18,30 +18,29 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
-  TrendingUp,
-  TrendingDown,
   Lightbulb,
-  CheckCircle2,
   FileJson,
   FileText,
-  AlertCircle,
-  Info,
   History,
   Bug,
-  Ruler,
-  MessageSquare,
-  Layout,
-  FileText as FileTextIcon,
-  AlertTriangle,
   Star,
   Download,
 } from "lucide-react";
-import { DimensionCard } from "@/components/dimension-card";
-import { SampleSizeAlert } from "@/components/sample-size-alert";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { interpretSuccessRate, interpretConfidence } from "@/lib/metrics";
+import { SmartAlertBanner } from "@/components/smart-alert-banner";
+import { DimensionalAnalysisAccordion } from "@/components/dimensional-analysis-accordion";
+import { CollapsibleSystemPrompt } from "@/components/collapsible-system-prompt";
+import {
+  interpretSuccessRate,
+  interpretConfidence,
+  getDetailedConfidenceAssessment,
+} from "@/lib/metrics";
 import { parseId } from "@/lib/utils";
 import { ApplyFixButton } from "@/components/apply-fix-button";
+import { PatternSummaryCard } from "@/components/pattern-summary-card";
+import { PatternFingerprintCard } from "@/components/pattern-fingerprint-card";
+import { ConfidenceExplainerCard } from "@/components/confidence-explainer-card";
+import { detectPatterns } from "@/lib/analysis/pattern-detection";
+import { generateFingerprint } from "@/lib/analysis/fingerprint-generator";
 import type { ExtractionCriteria, ModelConfig } from "@/types/database";
 
 // Force dynamic rendering to ensure fresh data after pattern extraction
@@ -158,14 +157,16 @@ export default async function InsightsPage({
       <div className="container mx-auto py-8">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex justify-between items-start">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
             <div className="flex-1">
-              <h1 className="text-4xl font-bold tracking-tight">Insights</h1>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
+                Insights
+              </h1>
               <p className="text-muted-foreground mt-2">
                 Quality patterns for{" "}
-                <span className="font-medium">{project.name}</span>
+                <span className="font-medium break-words">{project.name}</span>
               </p>
-              <div className="flex gap-4 mt-4 text-sm">
+              <div className="flex flex-wrap gap-x-4 gap-y-2 mt-4 text-sm">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-muted-foreground">
                     Success Rate:
@@ -198,7 +199,7 @@ export default async function InsightsPage({
             </div>
 
             {/* Export Buttons */}
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button variant="default" asChild>
                 <Link href={`/projects/${id}/golden-examples`}>
                   <Star className="mr-2 h-4 w-4" />
@@ -250,68 +251,42 @@ export default async function InsightsPage({
           </div>
         </div>
 
-        {/* Contextual Alerts */}
-        {(successInterpretation.actionable ||
-          confidenceInterpretation.actionable) && (
-          <div className="space-y-3 mb-6">
-            {successInterpretation.actionable && (
-              <Alert>
-                <Info className="h-4 w-4" />
-                <AlertTitle>{successInterpretation.message}</AlertTitle>
-                <AlertDescription>
-                  {successInterpretation.actionable}
-                </AlertDescription>
-              </Alert>
-            )}
-            {confidenceInterpretation.actionable && (
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>{confidenceInterpretation.message}</AlertTitle>
-                <AlertDescription>
-                  {confidenceInterpretation.actionable}
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
+        {/* Smart Alert Banner - Prioritized single alert */}
+        {criteria.dimensions && (
+          <SmartAlertBanner
+            failureRate={
+              criteria.failure_analysis?.total_failures
+                ? criteria.failure_analysis.total_failures /
+                  (criteria.dimensions.length.sample_size.high +
+                    criteria.dimensions.length.sample_size.low)
+                : 0
+            }
+            confidence={confidenceScore}
+            successRate={successRate}
+            failureCount={criteria.failure_analysis?.total_failures || 0}
+            needsMore={Math.max(0, 20 - (extraction.rated_output_count || 0))}
+          />
         )}
 
-        {/* Sample Size Guidance */}
+        {/* Visual Pattern Diff - Hero Section (Tier 1) */}
         {criteria.dimensions && (
-          <div className="mb-6">
-            <SampleSizeAlert
-              totalSamples={extraction.rated_output_count || 0}
-              highRatedCount={criteria.dimensions.length.sample_size.high}
-              lowRatedCount={criteria.dimensions.length.sample_size.low}
-              recommendedMinimum={20}
+          <div className="mb-8">
+            <PatternSummaryCard
+              patternSummary={detectPatterns(criteria.dimensions)}
+              successRate={successRate}
+              totalOutputs={
+                criteria.dimensions.length.sample_size.high +
+                criteria.dimensions.length.sample_size.low
+              }
             />
           </div>
         )}
 
-        {/* System Prompt Snapshot */}
-        {extraction.system_prompt_snapshot && (
-          <Card className="mb-6 border-primary/20">
-            <CardHeader>
-              <CardTitle className="text-lg">
-                System Prompt (Snapshot)
-              </CardTitle>
-              <CardDescription>
-                This was the prompt being evaluated at the time of this
-                extraction
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground whitespace-pre-wrap font-mono bg-muted/50 p-4 rounded-md">
-                {extraction.system_prompt_snapshot}
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Failure Analysis - NEW: Shows clustered failures with suggested fixes */}
+        {/* Failure Analysis - Actionable fixes for failures (Tier 2) */}
         {criteria.failure_analysis &&
           criteria.failure_analysis.clusters &&
           criteria.failure_analysis.clusters.length > 0 && (
-            <Card className="mb-6 border-destructive/30">
+            <Card id="failures" className="mb-6 border-destructive/30">
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -405,391 +380,40 @@ export default async function InsightsPage({
             </Card>
           )}
 
-        {/* Dimensional Analysis - NEW: Shows patterns across 5 dimensions */}
+        {/* Confidence Explainer - Actionable Confidence Guidance (Tier 2) */}
         {criteria.dimensions && (
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold mb-4">Dimensional Analysis</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              Quality patterns analyzed across 5 dimensions comparing high-rated
-              vs low-rated outputs
-            </p>
-            <div className="space-y-4">
-              {/* Length Dimension */}
-              <DimensionCard
-                title="Length"
-                icon={<Ruler className="h-5 w-5 text-primary" />}
-                insight={criteria.dimensions.length.insight}
-                confidence={criteria.dimensions.length.confidence}
-                highRatedPattern={
-                  <div className="space-y-1">
-                    <p className="font-medium">
-                      {criteria.dimensions.length.high_rated_range.min}-
-                      {criteria.dimensions.length.high_rated_range.max}{" "}
-                      {criteria.dimensions.length.metric}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Median:{" "}
-                      {criteria.dimensions.length.high_rated_range.median}{" "}
-                      {criteria.dimensions.length.metric}
-                    </p>
-                  </div>
-                }
-                lowRatedPattern={
-                  <div className="space-y-1">
-                    <p className="font-medium">
-                      {criteria.dimensions.length.low_rated_range.min}-
-                      {criteria.dimensions.length.low_rated_range.max}{" "}
-                      {criteria.dimensions.length.metric}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Median:{" "}
-                      {criteria.dimensions.length.low_rated_range.median}{" "}
-                      {criteria.dimensions.length.metric}
-                    </p>
-                  </div>
-                }
-                metrics={[
-                  {
-                    label: "High-rated samples",
-                    value: criteria.dimensions.length.sample_size.high,
-                  },
-                  {
-                    label: "Low-rated samples",
-                    value: criteria.dimensions.length.sample_size.low,
-                  },
-                ]}
-              />
-
-              {/* Tone Dimension */}
-              <DimensionCard
-                title="Tone"
-                icon={<MessageSquare className="h-5 w-5 text-primary" />}
-                insight={`Formality: ${criteria.dimensions.tone.formality.replace("_", " ")}, Technicality: ${criteria.dimensions.tone.technicality.replace("_", " ")}, Sentiment: ${criteria.dimensions.tone.sentiment}`}
-                confidence={criteria.dimensions.tone.confidence}
-                highRatedPattern={
-                  <div className="space-y-1">
-                    <p className="text-sm">
-                      {criteria.dimensions.tone.high_rated_pattern}
-                    </p>
-                  </div>
-                }
-                lowRatedPattern={
-                  <div className="space-y-1">
-                    <p className="text-sm">
-                      {criteria.dimensions.tone.low_rated_pattern}
-                    </p>
-                  </div>
-                }
-                metrics={[
-                  {
-                    label: "Formality",
-                    value: criteria.dimensions.tone.formality.replace("_", " "),
-                  },
-                  {
-                    label: "Technicality",
-                    value: criteria.dimensions.tone.technicality.replace(
-                      "_",
-                      " ",
-                    ),
-                  },
-                  {
-                    label: "Sentiment",
-                    value: criteria.dimensions.tone.sentiment,
-                  },
-                ]}
-              />
-
-              {/* Structure Dimension */}
-              <DimensionCard
-                title="Structure"
-                icon={<Layout className="h-5 w-5 text-primary" />}
-                insight={criteria.dimensions.structure.insight}
-                confidence={criteria.dimensions.structure.confidence}
-                highRatedPattern={
-                  <div className="space-y-1">
-                    {criteria.dimensions.structure.high_rated_includes.length >
-                    0 ? (
-                      <ul className="text-sm space-y-1">
-                        {criteria.dimensions.structure.high_rated_includes.map(
-                          (elem: string, i: number) => (
-                            <li key={i}>• {elem.replace("_", " ")}</li>
-                          ),
-                        )}
-                      </ul>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        No specific elements
-                      </p>
-                    )}
-                  </div>
-                }
-                lowRatedPattern={
-                  <div className="space-y-1">
-                    {criteria.dimensions.structure.low_rated_includes.length >
-                    0 ? (
-                      <ul className="text-sm space-y-1">
-                        {criteria.dimensions.structure.low_rated_includes.map(
-                          (elem: string, i: number) => (
-                            <li key={i}>• {elem.replace("_", " ")}</li>
-                          ),
-                        )}
-                      </ul>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        No specific elements
-                      </p>
-                    )}
-                  </div>
-                }
-              />
-
-              {/* Content Dimension */}
-              <DimensionCard
-                title="Content"
-                icon={<FileTextIcon className="h-5 w-5 text-primary" />}
-                insight={criteria.dimensions.content.insight}
-                confidence={criteria.dimensions.content.confidence}
-                highRatedPattern={
-                  <div className="space-y-1">
-                    {criteria.dimensions.content.high_rated_elements.length >
-                    0 ? (
-                      <ul className="text-sm space-y-1">
-                        {criteria.dimensions.content.high_rated_elements.map(
-                          (elem: string, i: number) => (
-                            <li key={i}>• {elem.replace("_", " ")}</li>
-                          ),
-                        )}
-                      </ul>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        No specific elements
-                      </p>
-                    )}
-                    <div className="flex gap-2 text-xs text-muted-foreground mt-2 pt-2 border-t">
-                      {criteria.dimensions.content.citations_present && (
-                        <span>✓ Citations</span>
-                      )}
-                      {criteria.dimensions.content.examples_present && (
-                        <span>✓ Examples</span>
-                      )}
-                      {criteria.dimensions.content.disclaimers_present && (
-                        <span>✓ Disclaimers</span>
-                      )}
-                    </div>
-                  </div>
-                }
-                lowRatedPattern={
-                  <div className="space-y-1">
-                    {criteria.dimensions.content.low_rated_elements.length >
-                    0 ? (
-                      <ul className="text-sm space-y-1">
-                        {criteria.dimensions.content.low_rated_elements.map(
-                          (elem: string, i: number) => (
-                            <li key={i}>• {elem.replace("_", " ")}</li>
-                          ),
-                        )}
-                      </ul>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        No specific elements
-                      </p>
-                    )}
-                  </div>
-                }
-                metrics={[
-                  {
-                    label: "Specificity",
-                    value: criteria.dimensions.content.specificity,
-                  },
-                ]}
-              />
-
-              {/* Errors Dimension */}
-              <DimensionCard
-                title="Errors"
-                icon={<AlertTriangle className="h-5 w-5 text-primary" />}
-                insight={criteria.dimensions.errors.insight}
-                confidence={criteria.dimensions.errors.confidence}
-                highRatedPattern={
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-green-600 dark:text-green-400">
-                      Minimal errors
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Clean, accurate outputs
-                    </p>
-                  </div>
-                }
-                lowRatedPattern={
-                  <div className="space-y-2 text-sm">
-                    {criteria.dimensions.errors.hallucinations.count > 0 && (
-                      <div>
-                        <p className="font-medium">
-                          Hallucinations:{" "}
-                          {criteria.dimensions.errors.hallucinations.count}
-                        </p>
-                        {criteria.dimensions.errors.hallucinations.examples
-                          .slice(0, 2)
-                          .map((ex: string, i: number) => (
-                            <p
-                              key={i}
-                              className="text-xs text-muted-foreground truncate"
-                            >
-                              • {ex}
-                            </p>
-                          ))}
-                      </div>
-                    )}
-                    {criteria.dimensions.errors.refusals.count > 0 && (
-                      <div>
-                        <p className="font-medium">
-                          Refusals: {criteria.dimensions.errors.refusals.count}
-                        </p>
-                      </div>
-                    )}
-                    {criteria.dimensions.errors.formatting_issues.count > 0 && (
-                      <div>
-                        <p className="font-medium">
-                          Formatting:{" "}
-                          {criteria.dimensions.errors.formatting_issues.count}
-                        </p>
-                      </div>
-                    )}
-                    {criteria.dimensions.errors.factual_errors.count > 0 && (
-                      <div>
-                        <p className="font-medium">
-                          Factual errors:{" "}
-                          {criteria.dimensions.errors.factual_errors.count}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                }
-              />
-            </div>
+          <div id="confidence" className="mb-6">
+            <ConfidenceExplainerCard
+              assessment={getDetailedConfidenceAssessment(
+                criteria.dimensions,
+                extraction.rated_output_count || 0,
+              )}
+            />
           </div>
         )}
 
-        {/* Summary */}
-        {criteria.summary && (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Lightbulb className="h-5 w-5" />
-                Summary
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm leading-relaxed">{criteria.summary}</p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Quality Criteria */}
-        {criteria.criteria && criteria.criteria.length > 0 && (
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold mb-4">Quality Criteria</h2>
-            <div className="space-y-4">
-              {criteria.criteria.map((criterion: any, index: number) => (
-                <Card key={index}>
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <CardTitle className="text-lg flex items-center gap-2">
-                          {criterion.dimension}
-                          {criterion.importance === "high" && (
-                            <Badge variant="destructive">High Priority</Badge>
-                          )}
-                          {criterion.importance === "medium" && (
-                            <Badge variant="secondary">Medium Priority</Badge>
-                          )}
-                          {criterion.importance === "low" && (
-                            <Badge variant="outline">Low Priority</Badge>
-                          )}
-                        </CardTitle>
-                        <CardDescription className="mt-2">
-                          {criterion.pattern}
-                        </CardDescription>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-sm font-medium text-green-600 dark:text-green-400">
-                          <TrendingUp className="h-4 w-4" />
-                          Good Outputs
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          {criterion.good_example}
-                        </p>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-sm font-medium text-red-600 dark:text-red-400">
-                          <TrendingDown className="h-4 w-4" />
-                          Poor Outputs
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          {criterion.bad_example}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+        {/* Pattern Fingerprint - Quality Source of Truth (Tier 2) */}
+        {criteria.dimensions && (
+          <div id="fingerprint" className="mb-6">
+            <PatternFingerprintCard
+              fingerprint={generateFingerprint(criteria.dimensions)}
+              projectName={project.name}
+              successRate={successRate}
+            />
           </div>
         )}
 
-        {/* Key Insights */}
-        {criteria.key_insights && criteria.key_insights.length > 0 && (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5" />
-                Key Insights
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2">
-                {criteria.key_insights.map((insight: string, index: number) => (
-                  <li key={index} className="flex items-start gap-2 text-sm">
-                    <span className="text-primary mt-1">•</span>
-                    <span>{insight}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+        {/* System Prompt Snapshot (Tier 3) - Collapsible */}
+        {extraction.system_prompt_snapshot && (
+          <CollapsibleSystemPrompt
+            systemPrompt={extraction.system_prompt_snapshot}
+            createdAt={extraction.created_at}
+          />
         )}
 
-        {/* Recommendations */}
-        {criteria.recommendations && criteria.recommendations.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Lightbulb className="h-5 w-5" />
-                Recommendations
-              </CardTitle>
-              <CardDescription>
-                Actions to improve output quality
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-3">
-                {criteria.recommendations.map((rec: string, index: number) => (
-                  <li key={index} className="flex items-start gap-3 text-sm">
-                    <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <span className="text-xs font-semibold text-primary">
-                        {index + 1}
-                      </span>
-                    </div>
-                    <span className="leading-relaxed">{rec}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+        {/* Dimensional Analysis - Shows patterns across 5 dimensions (Tier 3) - Accordion */}
+        {criteria.dimensions && (
+          <DimensionalAnalysisAccordion dimensions={criteria.dimensions} />
         )}
       </div>
     </div>
