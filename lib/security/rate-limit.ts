@@ -66,6 +66,14 @@ export const RATE_LIMITS = {
     message: "Too many authentication attempts. Please try again later.",
   },
 
+  // OAuth callback endpoints - allows for user retries
+  oauthCallback: {
+    maxRequests: 10,
+    windowMs: 15 * 60 * 1000, // 10 callbacks per 15 min (allows retries)
+    message:
+      "Too many sign-in attempts. Please wait a few minutes and try again.",
+  },
+
   // API endpoints - moderate
   api: {
     maxRequests: 100,
