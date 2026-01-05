@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { cn } from '@/lib/utils';
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
 
 interface SettingsTabsProps {
   canUseBYOK: boolean;
@@ -10,16 +10,22 @@ interface SettingsTabsProps {
 
 const ALL_TABS = [
   {
-    name: 'Subscription',
-    href: '/settings/subscription',
-    description: 'Plan, usage, and billing',
+    name: "Subscription",
+    href: "/settings/subscription",
+    description: "Plan, usage, and billing",
     requiresPaid: false, // Always visible
   },
   {
-    name: 'API Keys',
-    href: '/settings/api-keys',
-    description: 'Bring your own keys',
+    name: "API Keys",
+    href: "/settings/api-keys",
+    description: "Bring your own keys",
     requiresPaid: true, // Only for paid plans
+  },
+  {
+    name: "Connected Accounts",
+    href: "/settings/connected-accounts",
+    description: "OAuth providers",
+    requiresPaid: false, // Always visible
   },
   // Phase 2: Team management
   // {
@@ -47,10 +53,10 @@ export function SettingsTabs({ canUseBYOK }: SettingsTabsProps) {
               key={tab.name}
               href={tab.href}
               className={cn(
-                'group inline-flex items-center border-b-2 px-1 py-4 text-sm font-medium transition-colors',
+                "group inline-flex items-center border-b-2 px-1 py-4 text-sm font-medium transition-colors",
                 isActive
-                  ? 'border-primary text-foreground'
-                  : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground'
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",
               )}
             >
               <div className="flex flex-col items-start">
