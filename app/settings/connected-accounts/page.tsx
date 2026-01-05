@@ -10,7 +10,13 @@ import {
   type OAuthProvider,
 } from "@/lib/auth/oauth";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   GoogleIcon,
   GitHubIcon,
@@ -160,7 +166,7 @@ export default function ConnectedAccountsPage() {
 
   if (pageLoading) {
     return (
-      <div className="container max-w-2xl py-8">
+      <div className="space-y-6">
         <div className="flex items-center justify-center h-64">
           <SpinnerIcon className="w-8 h-8 animate-spin text-muted-foreground" />
         </div>
@@ -169,17 +175,10 @@ export default function ConnectedAccountsPage() {
   }
 
   return (
-    <div className="container max-w-2xl py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-semibold mb-2">Connected Accounts</h1>
-        <p className="text-muted-foreground">
-          Manage how you sign in to Sageloop
-        </p>
-      </div>
-
+    <div className="space-y-6">
       {error && (
         <div
-          className="mb-6 bg-destructive/10 text-destructive text-sm p-3 rounded-md"
+          className="bg-destructive/10 text-destructive text-sm p-3 rounded-md"
           role="alert"
           aria-live="polite"
         >
@@ -187,10 +186,18 @@ export default function ConnectedAccountsPage() {
         </div>
       )}
 
-      <div className="space-y-4">
-        {accounts.map((account) => (
-          <Card key={account.provider} className="p-4">
-            <div className="flex items-center justify-between">
+      {/* Connected Accounts */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Sign-in Methods</CardTitle>
+          <CardDescription>Manage how you sign in to Sageloop</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {accounts.map((account) => (
+            <div
+              key={account.provider}
+              className="flex items-center justify-between p-4 border rounded-lg"
+            >
               <div className="flex items-center gap-3">
                 {getProviderIcon(account.provider)}
                 <div>
@@ -254,21 +261,25 @@ export default function ConnectedAccountsPage() {
                 )}
               </div>
             </div>
-          </Card>
-        ))}
-      </div>
+          ))}
+        </CardContent>
+      </Card>
 
       {/* Warning about minimum auth methods */}
-      <div className="mt-6 p-4 bg-muted rounded-md flex items-start gap-3">
-        <div className="text-lg" aria-hidden="true">
-          !
-        </div>
-        <p className="text-sm text-muted-foreground">
-          You must have at least one sign-in method enabled. If you want to
-          disconnect an account, make sure you have another way to sign in
-          first.
-        </p>
-      </div>
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-start gap-3">
+            <div className="text-lg text-muted-foreground" aria-hidden="true">
+              !
+            </div>
+            <p className="text-sm text-muted-foreground">
+              You must have at least one sign-in method enabled. If you want to
+              disconnect an account, make sure you have another way to sign in
+              first.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Disconnect confirmation dialog */}
       <AlertDialog
