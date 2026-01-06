@@ -3,7 +3,6 @@ interface ExportData {
     name: string;
     model_config: {
       model: string;
-      temperature: number;
       system_prompt?: string;
     };
   };
@@ -63,7 +62,6 @@ export function generateJestSuite(data: ExportData): string {
  * Test Suite: ${project.model_config.model} - ${project.name}
  * Generated: ${new Date().toISOString()}
  * Model: ${project.model_config.model}
- * Temperature: ${project.model_config.temperature}
  *
  * This test suite was auto-generated from Sageloop golden examples.
  * It validates that AI outputs meet the quality criteria discovered through PM evaluation.

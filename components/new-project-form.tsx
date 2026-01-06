@@ -1,20 +1,26 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Combobox } from '@/components/ui/combobox';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Combobox } from "@/components/ui/combobox";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { ArrowLeft, Loader2 } from "lucide-react";
 
 interface ModelInfo {
   id: string;
   name: string;
-  provider: 'openai' | 'anthropic';
+  provider: "openai" | "anthropic";
 }
 
 interface NewProjectFormProps {
@@ -35,29 +41,28 @@ export function NewProjectForm({}: NewProjectFormProps) {
   // Users can always create projects (free tier available if no keys)
 
   const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    model: '',
-    temperature: '0.7',
-    systemPrompt: ''
+    name: "",
+    description: "",
+    model: "",
+    systemPrompt: "",
   });
 
   // Fetch available models from API
   useEffect(() => {
     const fetchModels = async () => {
       try {
-        const response = await fetch('/api/models');
+        const response = await fetch("/api/models");
         const data = await response.json();
 
         if (data.models) {
           setModels(data.models);
           // Set default model to first available
           if (data.models.length > 0 && !formData.model) {
-            setFormData(prev => ({ ...prev, model: data.models[0].id }));
+            setFormData((prev) => ({ ...prev, model: data.models[0].id }));
           }
         }
       } catch (err) {
-        console.error('Failed to fetch models:', err);
+        console.error("Failed to fetch models:", err);
       } finally {
         setLoadingModels(false);
       }
@@ -72,32 +77,31 @@ export function NewProjectForm({}: NewProjectFormProps) {
     setError(null);
 
     try {
-      const response = await fetch('/api/projects', {
-        method: 'POST',
+      const response = await fetch("/api/projects", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        credentials: 'include',
+        credentials: "include",
         body: JSON.stringify({
           name: formData.name,
           description: formData.description,
           model_config: {
             model: formData.model,
-            temperature: parseFloat(formData.temperature),
-            system_prompt: formData.systemPrompt
-          }
+            system_prompt: formData.systemPrompt,
+          },
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create project');
+        throw new Error(errorData.error || "Failed to create project");
       }
 
       const { data } = await response.json();
       router.push(`/projects/${data.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create project');
+      setError(err instanceof Error ? err.message : "Failed to create project");
       setIsLoading(false);
     }
   };
@@ -138,7 +142,9 @@ export function NewProjectForm({}: NewProjectFormProps) {
                   id="name"
                   placeholder="e.g., Customer Support Assistant"
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
                   required
                 />
               </div>
@@ -150,7 +156,9 @@ export function NewProjectForm({}: NewProjectFormProps) {
                   id="description"
                   placeholder="What are you evaluating in this project?"
                   value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
                   rows={3}
                 />
               </div>
@@ -159,45 +167,27 @@ export function NewProjectForm({}: NewProjectFormProps) {
               <div className="space-y-2">
                 <Label htmlFor="model">AI Model</Label>
                 <Combobox
-                  options={models.map(model => ({
+                  options={models.map((model) => ({
                     value: model.id,
-                    label: `${model.name} (${model.provider})`
+                    label: `${model.name} (${model.provider})`,
                   }))}
                   value={formData.model}
-                  onValueChange={(value) => setFormData({ ...formData, model: value })}
-                  placeholder={loadingModels ? 'Loading models...' : 'Select a model'}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, model: value })
+                  }
+                  placeholder={
+                    loadingModels ? "Loading models..." : "Select a model"
+                  }
                   searchPlaceholder="Search models..."
                   emptyText="No models found."
                   disabled={loadingModels || models.length === 0}
                 />
                 <p className="text-xs text-muted-foreground">
                   {loadingModels
-                    ? 'Loading available models from your configured providers...'
+                    ? "Loading available models from your configured providers..."
                     : models.length > 0
-                    ? `${models.length} model${models.length === 1 ? '' : 's'} available`
-                    : 'No models found'}
-                </p>
-              </div>
-
-              {/* Temperature */}
-              <div className="space-y-2">
-                <Label htmlFor="temperature">
-                  Temperature
-                  <span className="text-muted-foreground text-sm ml-2">
-                    (0.0 - 1.0)
-                  </span>
-                </Label>
-                <Input
-                  id="temperature"
-                  type="number"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  value={formData.temperature}
-                  onChange={(e) => setFormData({ ...formData, temperature: e.target.value })}
-                />
-                <p className="text-sm text-muted-foreground">
-                  Lower values are more deterministic, higher values are more creative
+                      ? `${models.length} model${models.length === 1 ? "" : "s"} available`
+                      : "No models found"}
                 </p>
               </div>
 
@@ -208,7 +198,9 @@ export function NewProjectForm({}: NewProjectFormProps) {
                   id="systemPrompt"
                   placeholder="You are a helpful assistant..."
                   value={formData.systemPrompt}
-                  onChange={(e) => setFormData({ ...formData, systemPrompt: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, systemPrompt: e.target.value })
+                  }
                   rows={5}
                 />
                 <p className="text-sm text-muted-foreground">
@@ -228,13 +220,15 @@ export function NewProjectForm({}: NewProjectFormProps) {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => router.push('/projects')}
+                  onClick={() => router.push("/projects")}
                   disabled={isLoading}
                 >
                   Cancel
                 </Button>
                 <Button type="submit" disabled={isLoading}>
-                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {isLoading && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
                   Create Project
                 </Button>
               </div>

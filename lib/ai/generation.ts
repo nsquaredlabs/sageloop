@@ -5,8 +5,8 @@
  * This eliminates ~60 lines of duplicated generation code across routes.
  */
 
-import { createOpenAIClient } from '@/lib/openai';
-import { createAnthropicClient } from '@/lib/anthropic';
+import { createOpenAIClient } from "@/lib/openai";
+import { createAnthropicClient } from "@/lib/anthropic";
 
 /**
  * Interpolates variables into a prompt using {{variable_name}} syntax
@@ -24,7 +24,7 @@ import { createAnthropicClient } from '@/lib/anthropic';
  */
 export function interpolateVariables(
   prompt: string,
-  variables?: Record<string, string>
+  variables?: Record<string, string>,
 ): string {
   if (!variables || Object.keys(variables).length === 0) {
     return prompt;
@@ -32,14 +32,13 @@ export function interpolateVariables(
 
   return Object.entries(variables).reduce((result, [key, value]) => {
     // Replace all occurrences of {{key}} with value
-    return result.replace(new RegExp(`{{${key}}}`, 'g'), value);
+    return result.replace(new RegExp(`{{${key}}}`, "g"), value);
   }, prompt);
 }
 
 export interface GenerationConfig {
-  provider: 'openai' | 'anthropic';
+  provider: "openai" | "anthropic";
   model: string;
-  temperature?: number;
   systemPrompt?: string;
   userMessage: string;
   apiKey?: string;
@@ -63,6 +62,9 @@ export interface GenerationResult {
 /**
  * Generates AI completion using OpenAI or Anthropic based on provider
  *
+ * Note: Temperature is intentionally omitted to align with best practices
+ * for consistent outputs, especially for reasoning models like GPT-5.
+ *
  * @param config - Generation configuration including provider, model, prompts, etc.
  * @returns Generated text and token usage information
  *
@@ -71,7 +73,6 @@ export interface GenerationResult {
  * const result = await generateCompletion({
  *   provider: 'openai',
  *   model: 'gpt-4',
- *   temperature: 0.7,
  *   systemPrompt: 'You are a helpful assistant',
  *   userMessage: 'Hello!',
  *   apiKey: 'sk-...'
@@ -82,7 +83,6 @@ export interface GenerationResult {
  * const result = await generateCompletion({
  *   provider: 'anthropic',
  *   model: 'claude-opus-4',
- *   temperature: 0.3,
  *   systemPrompt: 'You are Claude',
  *   userMessage: 'Tell me about AI',
  *   apiKey: 'sk-ant-...',
@@ -90,12 +90,11 @@ export interface GenerationResult {
  * });
  */
 export async function generateCompletion(
-  config: GenerationConfig
+  config: GenerationConfig,
 ): Promise<GenerationResult> {
   const {
     provider,
     model,
-    temperature = 0.7,
     systemPrompt,
     userMessage,
     apiKey,
@@ -109,23 +108,22 @@ export async function generateCompletion(
     : undefined;
   const interpolatedUserMessage = interpolateVariables(userMessage, variables);
 
-  if (provider === 'openai') {
+  if (provider === "openai") {
     const openai = createOpenAIClient(apiKey);
 
-    // gpt-5-nano only supports temperature=1 (default), omit temperature parameter
-    const isGpt5Nano = model === 'gpt-5-nano';
-
+    // Note: Temperature intentionally omitted for consistent outputs
     const completion = await openai.chat.completions.create({
       model,
-      ...(isGpt5Nano ? {} : { temperature }), // Omit temperature for gpt-5-nano
       messages: [
-        ...(interpolatedSystemPrompt ? [{ role: 'system' as const, content: interpolatedSystemPrompt }] : []),
-        { role: 'user' as const, content: interpolatedUserMessage },
+        ...(interpolatedSystemPrompt
+          ? [{ role: "system" as const, content: interpolatedSystemPrompt }]
+          : []),
+        { role: "user" as const, content: interpolatedUserMessage },
       ],
     });
 
     return {
-      text: completion.choices[0]?.message?.content || '',
+      text: completion.choices[0]?.message?.content || "",
       usage: {
         completionTokens: completion.usage?.completion_tokens,
         promptTokens: completion.usage?.prompt_tokens,
@@ -135,16 +133,16 @@ export async function generateCompletion(
   } else {
     // Anthropic
     const anthropic = createAnthropicClient(apiKey);
+    // Note: Temperature intentionally omitted for consistent outputs
     const message = await anthropic.messages.create({
       model,
       max_tokens: maxTokens || 4096,
-      temperature,
       system: interpolatedSystemPrompt,
-      messages: [{ role: 'user', content: interpolatedUserMessage }],
+      messages: [{ role: "user", content: interpolatedUserMessage }],
     });
 
     return {
-      text: message.content[0]?.type === 'text' ? message.content[0].text : '',
+      text: message.content[0]?.type === "text" ? message.content[0].text : "",
       usage: {
         inputTokens: message.usage.input_tokens,
         outputTokens: message.usage.output_tokens,

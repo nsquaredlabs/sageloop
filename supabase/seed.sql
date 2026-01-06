@@ -222,6 +222,7 @@ values (
 on conflict (id) do nothing;
 
 -- Create sample project with prompt_version
+-- Note: temperature has been removed to align with best practices for consistent outputs
 insert into projects (
   id,
   name,
@@ -237,7 +238,7 @@ values (
   1,
   'Date Parser Evaluation',
   'Testing date extraction accuracy with various input formats',
-  '{"model": "gpt-5-nano", "temperature": 0.7, "system_prompt": "Extract event details from the text. Return JSON with event name, date, time, location."}'::jsonb,
+  '{"model": "gpt-5-nano", "system_prompt": "Extract event details from the text. Return JSON with event name, date, time, location."}'::jsonb,
   '00000000-0000-0000-0000-000000000001'::uuid,
   '00000000-0000-0000-0000-000000000001'::uuid,
   1,
@@ -262,28 +263,29 @@ on conflict do nothing;
 
 -- Insert outputs for all scenarios (version 1)
 -- Some will have date defaulting issues (2022 instead of current year)
+-- Note: temperature has been removed from model_snapshot to align with best practices
 insert into outputs (scenario_id, output_text, model_snapshot)
 values
   -- Scenario 1: defaults to 2022 (FAILURE)
-  (1, '{"event":"Team Meeting","date":"2022-12-10","time":"14:00","location":"blue room"}', '{"model":"gpt-5-nano","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
+  (1, '{"event":"Team Meeting","date":"2022-12-10","time":"14:00","location":"blue room"}', '{"model":"gpt-5-nano","system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
   -- Scenario 2: correct (SUCCESS)
-  (2, '{"event":"Annual Company Retreat","date":"2025-10-05","time":null,"location":null}', '{"model":"gpt-5-nano","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
+  (2, '{"event":"Annual Company Retreat","date":"2025-10-05","time":null,"location":null}', '{"model":"gpt-5-nano","system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
   -- Scenario 3: defaults to 2022 (FAILURE)
-  (3, '{"event":"Quick Standup","date":"2022-12-16","time":"09:00","location":null}', '{"model":"gpt-5-nano","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
+  (3, '{"event":"Quick Standup","date":"2022-12-16","time":"09:00","location":null}', '{"model":"gpt-5-nano","system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
   -- Scenario 4: correct (SUCCESS)
-  (4, '{"event":"Board Meeting","date":"2025-11-03","time":"13:00","location":null}', '{"model":"gpt-5-nano","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
+  (4, '{"event":"Board Meeting","date":"2025-11-03","time":"13:00","location":null}', '{"model":"gpt-5-nano","system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
   -- Scenario 5: defaults to 2022 (FAILURE)
-  (5, '{"event":"Emergency All-Hands Meeting","date":"2022-12-09","time":"16:30","location":null}', '{"model":"gpt-5-nano","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
+  (5, '{"event":"Emergency All-Hands Meeting","date":"2022-12-09","time":"16:30","location":null}', '{"model":"gpt-5-nano","system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
   -- Scenario 6: correct (SUCCESS)
-  (6, '{"event":"Parent-Teacher Conference","date":"2025-04-18","time":"15:15","location":null}', '{"model":"gpt-5-nano","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
+  (6, '{"event":"Parent-Teacher Conference","date":"2025-04-18","time":"15:15","location":null}', '{"model":"gpt-5-nano","system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
   -- Scenario 7: correct (SUCCESS)
-  (7, '{"event":"Workshop Series","date":"2025-01-06","time":"15:00","location":null}', '{"model":"gpt-5-nano","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
+  (7, '{"event":"Workshop Series","date":"2025-01-06","time":"15:00","location":null}', '{"model":"gpt-5-nano","system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
   -- Scenario 8: correct (SUCCESS)
-  (8, '{"event":"Flight Departure","date":"2025-12-15","time":"06:45","location":"LAX"}', '{"model":"gpt-5-nano","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
+  (8, '{"event":"Flight Departure","date":"2025-12-15","time":"06:45","location":"LAX"}', '{"model":"gpt-5-nano","system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
   -- Scenario 9: correct (SUCCESS)
-  (9, '{"event":"Sarah & Mike''s Wedding","date":"2025-06-14","time":null,"location":null}', '{"model":"gpt-5-nano","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
+  (9, '{"event":"Sarah & Mike''s Wedding","date":"2025-06-14","time":null,"location":null}', '{"model":"gpt-5-nano","system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb),
   -- Scenario 10: defaults to 2022 (FAILURE)
-  (10, '{"event":"Doctor Appointment","date":"2022-12-13","time":"10:30","location":"Dr. Smith''s office"}', '{"model":"gpt-5-nano","temperature":0.7,"system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb)
+  (10, '{"event":"Doctor Appointment","date":"2022-12-13","time":"10:30","location":"Dr. Smith''s office"}', '{"model":"gpt-5-nano","system_prompt":"Extract event details from the text. Return JSON with event name, date, time, location.","version":1}'::jsonb)
 on conflict do nothing;
 
 -- Insert ratings (4 failures with feedback, 6 successes)

@@ -79,7 +79,7 @@ export function interpretSuccessRate(
       variant: "destructive",
       message: "Low success rate indicates significant quality issues.",
       actionable:
-        "Review your system prompt, model choice, and temperature settings. Use the recommendations below as a guide.",
+        "Review your system prompt and model choice. Use the recommendations below as a guide.",
     };
   }
 }

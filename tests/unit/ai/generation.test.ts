@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { generateCompletion, interpolateVariables } from '@/lib/ai/generation';
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { generateCompletion, interpolateVariables } from "@/lib/ai/generation";
 
 /**
  * Generation Service Tests (Sprint 2 - Issue #5)
@@ -8,7 +8,7 @@ import { generateCompletion, interpolateVariables } from '@/lib/ai/generation';
  */
 
 // Mock the OpenAI and Anthropic clients
-vi.mock('@/lib/openai', () => ({
+vi.mock("@/lib/openai", () => ({
   createOpenAIClient: vi.fn(() => ({
     chat: {
       completions: {
@@ -18,7 +18,7 @@ vi.mock('@/lib/openai', () => ({
   })),
 }));
 
-vi.mock('@/lib/anthropic', () => ({
+vi.mock("@/lib/anthropic", () => ({
   createAnthropicClient: vi.fn(() => ({
     messages: {
       create: vi.fn(),
@@ -26,15 +26,15 @@ vi.mock('@/lib/anthropic', () => ({
   })),
 }));
 
-describe('Generation Service - OpenAI', () => {
+describe("Generation Service - OpenAI", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('should generate completion using OpenAI', async () => {
-    const { createOpenAIClient } = await import('@/lib/openai');
+  it("should generate completion using OpenAI", async () => {
+    const { createOpenAIClient } = await import("@/lib/openai");
     const mockCreate = vi.fn().mockResolvedValue({
-      choices: [{ message: { content: 'Generated response from GPT-4' } }],
+      choices: [{ message: { content: "Generated response from GPT-4" } }],
       usage: {
         completion_tokens: 10,
         prompt_tokens: 20,
@@ -51,33 +51,32 @@ describe('Generation Service - OpenAI', () => {
     });
 
     const result = await generateCompletion({
-      provider: 'openai',
-      model: 'gpt-4',
-      temperature: 0.7,
-      systemPrompt: 'You are a helpful assistant',
-      userMessage: 'Hello, how are you?',
-      apiKey: 'sk-test-key',
+      provider: "openai",
+      model: "gpt-4",
+      systemPrompt: "You are a helpful assistant",
+      userMessage: "Hello, how are you?",
+      apiKey: "sk-test-key",
     });
 
-    expect(result.text).toBe('Generated response from GPT-4');
+    expect(result.text).toBe("Generated response from GPT-4");
     expect(result.usage.completionTokens).toBe(10);
     expect(result.usage.promptTokens).toBe(20);
     expect(result.usage.totalTokens).toBe(30);
 
+    // Note: temperature is intentionally omitted for consistent outputs
     expect(mockCreate).toHaveBeenCalledWith({
-      model: 'gpt-4',
-      temperature: 0.7,
+      model: "gpt-4",
       messages: [
-        { role: 'system', content: 'You are a helpful assistant' },
-        { role: 'user', content: 'Hello, how are you?' },
+        { role: "system", content: "You are a helpful assistant" },
+        { role: "user", content: "Hello, how are you?" },
       ],
     });
   });
 
-  it('should handle OpenAI completion without system prompt', async () => {
-    const { createOpenAIClient } = await import('@/lib/openai');
+  it("should handle OpenAI completion without system prompt", async () => {
+    const { createOpenAIClient } = await import("@/lib/openai");
     const mockCreate = vi.fn().mockResolvedValue({
-      choices: [{ message: { content: 'Response without system prompt' } }],
+      choices: [{ message: { content: "Response without system prompt" } }],
       usage: {
         completion_tokens: 5,
         prompt_tokens: 10,
@@ -94,32 +93,29 @@ describe('Generation Service - OpenAI', () => {
     });
 
     const result = await generateCompletion({
-      provider: 'openai',
-      model: 'gpt-3.5-turbo',
-      temperature: 0.5,
-      userMessage: 'What is 2+2?',
+      provider: "openai",
+      model: "gpt-3.5-turbo",
+      userMessage: "What is 2+2?",
     });
 
-    expect(result.text).toBe('Response without system prompt');
+    expect(result.text).toBe("Response without system prompt");
+    // Note: temperature is intentionally omitted for consistent outputs
     expect(mockCreate).toHaveBeenCalledWith({
-      model: 'gpt-3.5-turbo',
-      temperature: 0.5,
-      messages: [
-        { role: 'user', content: 'What is 2+2?' },
-      ],
+      model: "gpt-3.5-turbo",
+      messages: [{ role: "user", content: "What is 2+2?" }],
     });
   });
 });
 
-describe('Generation Service - Anthropic', () => {
+describe("Generation Service - Anthropic", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('should generate completion using Anthropic', async () => {
-    const { createAnthropicClient } = await import('@/lib/anthropic');
+  it("should generate completion using Anthropic", async () => {
+    const { createAnthropicClient } = await import("@/lib/anthropic");
     const mockCreate = vi.fn().mockResolvedValue({
-      content: [{ type: 'text', text: 'Generated response from Claude' }],
+      content: [{ type: "text", text: "Generated response from Claude" }],
       usage: {
         input_tokens: 15,
         output_tokens: 25,
@@ -133,32 +129,31 @@ describe('Generation Service - Anthropic', () => {
     });
 
     const result = await generateCompletion({
-      provider: 'anthropic',
-      model: 'claude-opus-4',
-      temperature: 0.3,
-      systemPrompt: 'You are Claude',
-      userMessage: 'Tell me about AI',
-      apiKey: 'sk-ant-test',
+      provider: "anthropic",
+      model: "claude-opus-4",
+      systemPrompt: "You are Claude",
+      userMessage: "Tell me about AI",
+      apiKey: "sk-ant-test",
       maxTokens: 2048,
     });
 
-    expect(result.text).toBe('Generated response from Claude');
+    expect(result.text).toBe("Generated response from Claude");
     expect(result.usage.inputTokens).toBe(15);
     expect(result.usage.outputTokens).toBe(25);
 
+    // Note: temperature is intentionally omitted for consistent outputs
     expect(mockCreate).toHaveBeenCalledWith({
-      model: 'claude-opus-4',
+      model: "claude-opus-4",
       max_tokens: 2048,
-      temperature: 0.3,
-      system: 'You are Claude',
-      messages: [{ role: 'user', content: 'Tell me about AI' }],
+      system: "You are Claude",
+      messages: [{ role: "user", content: "Tell me about AI" }],
     });
   });
 
-  it('should use default maxTokens for Anthropic if not provided', async () => {
-    const { createAnthropicClient } = await import('@/lib/anthropic');
+  it("should use default maxTokens for Anthropic if not provided", async () => {
+    const { createAnthropicClient } = await import("@/lib/anthropic");
     const mockCreate = vi.fn().mockResolvedValue({
-      content: [{ type: 'text', text: 'Default max tokens response' }],
+      content: [{ type: "text", text: "Default max tokens response" }],
       usage: {
         input_tokens: 10,
         output_tokens: 20,
@@ -172,27 +167,26 @@ describe('Generation Service - Anthropic', () => {
     });
 
     await generateCompletion({
-      provider: 'anthropic',
-      model: 'claude-haiku-4-5-20251001',
-      temperature: 0.7,
-      userMessage: 'Quick question',
+      provider: "anthropic",
+      model: "claude-haiku-4-5-20251001",
+      userMessage: "Quick question",
     });
 
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         max_tokens: 4096, // Default value
-      })
+      }),
     );
   });
 });
 
-describe('Generation Service - Edge Cases', () => {
+describe("Generation Service - Edge Cases", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('should handle empty response from OpenAI', async () => {
-    const { createOpenAIClient } = await import('@/lib/openai');
+  it("should handle empty response from OpenAI", async () => {
+    const { createOpenAIClient } = await import("@/lib/openai");
     const mockCreate = vi.fn().mockResolvedValue({
       choices: [],
       usage: {
@@ -211,18 +205,18 @@ describe('Generation Service - Edge Cases', () => {
     });
 
     const result = await generateCompletion({
-      provider: 'openai',
-      model: 'gpt-4',
-      userMessage: 'Test',
+      provider: "openai",
+      model: "gpt-4",
+      userMessage: "Test",
     });
 
-    expect(result.text).toBe('');
+    expect(result.text).toBe("");
   });
 
-  it('should handle non-text response from Anthropic', async () => {
-    const { createAnthropicClient } = await import('@/lib/anthropic');
+  it("should handle non-text response from Anthropic", async () => {
+    const { createAnthropicClient } = await import("@/lib/anthropic");
     const mockCreate = vi.fn().mockResolvedValue({
-      content: [{ type: 'image', data: 'base64...' }],
+      content: [{ type: "image", data: "base64..." }],
       usage: {
         input_tokens: 5,
         output_tokens: 0,
@@ -236,18 +230,18 @@ describe('Generation Service - Edge Cases', () => {
     });
 
     const result = await generateCompletion({
-      provider: 'anthropic',
-      model: 'claude-opus-4',
-      userMessage: 'Generate image',
+      provider: "anthropic",
+      model: "claude-opus-4",
+      userMessage: "Generate image",
     });
 
-    expect(result.text).toBe('');
+    expect(result.text).toBe("");
   });
 
-  it('should use default temperature if not provided', async () => {
-    const { createOpenAIClient } = await import('@/lib/openai');
+  it("should not pass temperature to API for consistent outputs", async () => {
+    const { createOpenAIClient } = await import("@/lib/openai");
     const mockCreate = vi.fn().mockResolvedValue({
-      choices: [{ message: { content: 'test' } }],
+      choices: [{ message: { content: "test" } }],
       usage: {},
     });
 
@@ -260,79 +254,85 @@ describe('Generation Service - Edge Cases', () => {
     });
 
     await generateCompletion({
-      provider: 'openai',
-      model: 'gpt-4',
-      userMessage: 'Test',
+      provider: "openai",
+      model: "gpt-4",
+      userMessage: "Test",
     });
 
-    expect(mockCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        temperature: 0.7, // Default value
-      })
-    );
+    // Temperature should NOT be in the call for consistent outputs
+    expect(mockCreate).toHaveBeenCalledWith({
+      model: "gpt-4",
+      messages: [{ role: "user", content: "Test" }],
+    });
+    // Verify temperature is not present
+    const callArgs = mockCreate.mock.calls[0][0];
+    expect(callArgs).not.toHaveProperty("temperature");
   });
 });
 
-describe('interpolateVariables', () => {
-  it('should return prompt unchanged when no variables provided', () => {
-    const prompt = 'Hello, world!';
+describe("interpolateVariables", () => {
+  it("should return prompt unchanged when no variables provided", () => {
+    const prompt = "Hello, world!";
     expect(interpolateVariables(prompt)).toBe(prompt);
     expect(interpolateVariables(prompt, {})).toBe(prompt);
   });
 
-  it('should interpolate a single variable', () => {
-    const prompt = 'Today is {{current_date}}.';
-    const variables = { current_date: '2025-12-11' };
-    expect(interpolateVariables(prompt, variables)).toBe('Today is 2025-12-11.');
-  });
-
-  it('should interpolate multiple variables', () => {
-    const prompt = 'Hello {{name}}, today is {{date}} and the weather is {{weather}}.';
-    const variables = {
-      name: 'Alice',
-      date: '2025-12-11',
-      weather: 'sunny',
-    };
+  it("should interpolate a single variable", () => {
+    const prompt = "Today is {{current_date}}.";
+    const variables = { current_date: "2025-12-11" };
     expect(interpolateVariables(prompt, variables)).toBe(
-      'Hello Alice, today is 2025-12-11 and the weather is sunny.'
+      "Today is 2025-12-11.",
     );
   });
 
-  it('should interpolate the same variable multiple times', () => {
-    const prompt = '{{greeting}}, {{name}}! {{greeting}} again, {{name}}!';
-    const variables = {
-      greeting: 'Hello',
-      name: 'Bob',
-    };
-    expect(interpolateVariables(prompt, variables)).toBe(
-      'Hello, Bob! Hello again, Bob!'
-    );
-  });
-
-  it('should leave undefined variables unchanged', () => {
-    const prompt = 'Hello {{name}}, today is {{date}}.';
-    const variables = { name: 'Charlie' };
-    expect(interpolateVariables(prompt, variables)).toBe(
-      'Hello Charlie, today is {{date}}.'
-    );
-  });
-
-  it('should handle empty string values', () => {
-    const prompt = 'Hello {{name}}!';
-    const variables = { name: '' };
-    expect(interpolateVariables(prompt, variables)).toBe('Hello !');
-  });
-
-  it('should handle date-sensitive scenario from requirements', () => {
+  it("should interpolate multiple variables", () => {
     const prompt =
-      'You are a helpful assistant. Today\'s date is {{current_date}}. Parse dates relative to today.';
-    const variables = { current_date: '2025-12-11' };
+      "Hello {{name}}, today is {{date}} and the weather is {{weather}}.";
+    const variables = {
+      name: "Alice",
+      date: "2025-12-11",
+      weather: "sunny",
+    };
     expect(interpolateVariables(prompt, variables)).toBe(
-      "You are a helpful assistant. Today's date is 2025-12-11. Parse dates relative to today."
+      "Hello Alice, today is 2025-12-11 and the weather is sunny.",
     );
   });
 
-  it('should handle complex multi-line prompts', () => {
+  it("should interpolate the same variable multiple times", () => {
+    const prompt = "{{greeting}}, {{name}}! {{greeting}} again, {{name}}!";
+    const variables = {
+      greeting: "Hello",
+      name: "Bob",
+    };
+    expect(interpolateVariables(prompt, variables)).toBe(
+      "Hello, Bob! Hello again, Bob!",
+    );
+  });
+
+  it("should leave undefined variables unchanged", () => {
+    const prompt = "Hello {{name}}, today is {{date}}.";
+    const variables = { name: "Charlie" };
+    expect(interpolateVariables(prompt, variables)).toBe(
+      "Hello Charlie, today is {{date}}.",
+    );
+  });
+
+  it("should handle empty string values", () => {
+    const prompt = "Hello {{name}}!";
+    const variables = { name: "" };
+    expect(interpolateVariables(prompt, variables)).toBe("Hello !");
+  });
+
+  it("should handle date-sensitive scenario from requirements", () => {
+    const prompt =
+      "You are a helpful assistant. Today's date is {{current_date}}. Parse dates relative to today.";
+    const variables = { current_date: "2025-12-11" };
+    expect(interpolateVariables(prompt, variables)).toBe(
+      "You are a helpful assistant. Today's date is 2025-12-11. Parse dates relative to today.",
+    );
+  });
+
+  it("should handle complex multi-line prompts", () => {
     const prompt = `You are {{assistant_name}}.
 Today is {{current_date}}.
 User timezone: {{timezone}}.
@@ -340,9 +340,9 @@ User timezone: {{timezone}}.
 Please respond helpfully.`;
 
     const variables = {
-      assistant_name: 'Claude',
-      current_date: '2025-12-11',
-      timezone: 'PST',
+      assistant_name: "Claude",
+      current_date: "2025-12-11",
+      timezone: "PST",
     };
 
     expect(interpolateVariables(prompt, variables)).toBe(
@@ -350,44 +350,45 @@ Please respond helpfully.`;
 Today is 2025-12-11.
 User timezone: PST.
 
-Please respond helpfully.`
+Please respond helpfully.`,
     );
   });
 
-  it('should not interpolate partial matches', () => {
-    const prompt = 'Value: {{var}} and {{variable}}';
-    const variables = { var: 'A' };
+  it("should not interpolate partial matches", () => {
+    const prompt = "Value: {{var}} and {{variable}}";
+    const variables = { var: "A" };
     expect(interpolateVariables(prompt, variables)).toBe(
-      'Value: A and {{variable}}'
+      "Value: A and {{variable}}",
     );
   });
 
-  it('should handle variables in both system prompt and user message context', () => {
-    const systemPrompt = 'You are a helpful assistant. Today is {{current_date}}.';
-    const userMessage = 'What events are happening on {{event_date}}?';
+  it("should handle variables in both system prompt and user message context", () => {
+    const systemPrompt =
+      "You are a helpful assistant. Today is {{current_date}}.";
+    const userMessage = "What events are happening on {{event_date}}?";
     const variables = {
-      current_date: '2025-12-11',
-      event_date: 'Feb 28, 2025',
+      current_date: "2025-12-11",
+      event_date: "Feb 28, 2025",
     };
 
     expect(interpolateVariables(systemPrompt, variables)).toBe(
-      'You are a helpful assistant. Today is 2025-12-11.'
+      "You are a helpful assistant. Today is 2025-12-11.",
     );
     expect(interpolateVariables(userMessage, variables)).toBe(
-      'What events are happening on Feb 28, 2025?'
+      "What events are happening on Feb 28, 2025?",
     );
   });
 });
 
-describe('Generation Service - Variable Interpolation Integration', () => {
+describe("Generation Service - Variable Interpolation Integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('should interpolate variables in OpenAI completion', async () => {
-    const { createOpenAIClient } = await import('@/lib/openai');
+  it("should interpolate variables in OpenAI completion", async () => {
+    const { createOpenAIClient } = await import("@/lib/openai");
     const mockCreate = vi.fn().mockResolvedValue({
-      choices: [{ message: { content: 'Response' } }],
+      choices: [{ message: { content: "Response" } }],
       usage: { completion_tokens: 5, prompt_tokens: 10, total_tokens: 15 },
     });
 
@@ -400,30 +401,30 @@ describe('Generation Service - Variable Interpolation Integration', () => {
     });
 
     await generateCompletion({
-      provider: 'openai',
-      model: 'gpt-4',
-      systemPrompt: 'Today is {{current_date}}.',
-      userMessage: 'What is the date {{days}} days from now?',
+      provider: "openai",
+      model: "gpt-4",
+      systemPrompt: "Today is {{current_date}}.",
+      userMessage: "What is the date {{days}} days from now?",
       variables: {
-        current_date: '2025-12-11',
-        days: '7',
+        current_date: "2025-12-11",
+        days: "7",
       },
     });
 
+    // Note: temperature is intentionally omitted for consistent outputs
     expect(mockCreate).toHaveBeenCalledWith({
-      model: 'gpt-4',
-      temperature: 0.7,
+      model: "gpt-4",
       messages: [
-        { role: 'system', content: 'Today is 2025-12-11.' },
-        { role: 'user', content: 'What is the date 7 days from now?' },
+        { role: "system", content: "Today is 2025-12-11." },
+        { role: "user", content: "What is the date 7 days from now?" },
       ],
     });
   });
 
-  it('should interpolate variables in Anthropic completion', async () => {
-    const { createAnthropicClient } = await import('@/lib/anthropic');
+  it("should interpolate variables in Anthropic completion", async () => {
+    const { createAnthropicClient } = await import("@/lib/anthropic");
     const mockCreate = vi.fn().mockResolvedValue({
-      content: [{ type: 'text', text: 'Response' }],
+      content: [{ type: "text", text: "Response" }],
       usage: { input_tokens: 10, output_tokens: 20 },
     });
 
@@ -434,23 +435,23 @@ describe('Generation Service - Variable Interpolation Integration', () => {
     });
 
     await generateCompletion({
-      provider: 'anthropic',
-      model: 'claude-opus-4',
-      systemPrompt: 'You are {{assistant_name}}. Today is {{current_date}}.',
-      userMessage: 'Parse this date: {{date_text}}',
+      provider: "anthropic",
+      model: "claude-opus-4",
+      systemPrompt: "You are {{assistant_name}}. Today is {{current_date}}.",
+      userMessage: "Parse this date: {{date_text}}",
       variables: {
-        assistant_name: 'Claude',
-        current_date: '2025-12-11',
-        date_text: 'next Thursday',
+        assistant_name: "Claude",
+        current_date: "2025-12-11",
+        date_text: "next Thursday",
       },
     });
 
+    // Note: temperature is intentionally omitted for consistent outputs
     expect(mockCreate).toHaveBeenCalledWith({
-      model: 'claude-opus-4',
+      model: "claude-opus-4",
       max_tokens: 4096,
-      temperature: 0.7,
-      system: 'You are Claude. Today is 2025-12-11.',
-      messages: [{ role: 'user', content: 'Parse this date: next Thursday' }],
+      system: "You are Claude. Today is 2025-12-11.",
+      messages: [{ role: "user", content: "Parse this date: next Thursday" }],
     });
   });
 });

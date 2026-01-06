@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Loader2, Check, X, Eye, EyeOff, Trash2 } from 'lucide-react';
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Loader2, Check, X, Eye, EyeOff, Trash2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,7 +14,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+} from "@/components/ui/alert-dialog";
 
 interface ApiKeyFormProps {
   workbenchId: string;
@@ -24,23 +24,30 @@ interface ApiKeyFormProps {
   };
 }
 
-export function ApiKeyForm({ workbenchId, initialConfigured }: ApiKeyFormProps) {
-  const [openaiKey, setOpenaiKey] = useState('');
-  const [anthropicKey, setAnthropicKey] = useState('');
+export function ApiKeyForm({
+  workbenchId,
+  initialConfigured,
+}: ApiKeyFormProps) {
+  const [openaiKey, setOpenaiKey] = useState("");
+  const [anthropicKey, setAnthropicKey] = useState("");
   const [showOpenaiKey, setShowOpenaiKey] = useState(false);
   const [showAnthropicKey, setShowAnthropicKey] = useState(false);
   const [isConfigured, setIsConfigured] = useState(initialConfigured);
   const [isSaving, setIsSaving] = useState(false);
-  const [isTesting, setIsTesting] = useState<'openai' | 'anthropic' | null>(null);
+  const [isTesting, setIsTesting] = useState<"openai" | "anthropic" | null>(
+    null,
+  );
   const [testResults, setTestResults] = useState<{
     openai?: { valid: boolean; error?: string };
     anthropic?: { valid: boolean; error?: string };
   }>({});
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const [deleteDialog, setDeleteDialog] = useState<'openai' | 'anthropic' | null>(null);
+  const [deleteDialog, setDeleteDialog] = useState<
+    "openai" | "anthropic" | null
+  >(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleDelete = async (provider: 'openai' | 'anthropic') => {
+  const handleDelete = async (provider: "openai" | "anthropic") => {
     setIsDeleting(true);
     setSaveMessage(null);
 
@@ -48,24 +55,26 @@ export function ApiKeyForm({ workbenchId, initialConfigured }: ApiKeyFormProps) 
       const response = await fetch(
         `/api/workbenches/${workbenchId}/api-keys?provider=${provider}`,
         {
-          method: 'DELETE',
-          credentials: 'include',
-        }
+          method: "DELETE",
+          credentials: "include",
+        },
       );
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete API key');
+        throw new Error(errorData.error || "Failed to delete API key");
       }
 
       const result = await response.json();
       setIsConfigured(result.configured);
-      setSaveMessage(result.message || 'API key deleted successfully');
+      setSaveMessage(result.message || "API key deleted successfully");
 
       // Clear message after 5 seconds
       setTimeout(() => setSaveMessage(null), 5000);
     } catch (err) {
-      setSaveMessage(err instanceof Error ? err.message : 'Failed to delete API key');
+      setSaveMessage(
+        err instanceof Error ? err.message : "Failed to delete API key",
+      );
     } finally {
       setIsDeleting(false);
       setDeleteDialog(null);
@@ -74,7 +83,7 @@ export function ApiKeyForm({ workbenchId, initialConfigured }: ApiKeyFormProps) 
 
   const handleSave = async () => {
     if (!openaiKey && !anthropicKey) {
-      setSaveMessage('Please enter at least one API key');
+      setSaveMessage("Please enter at least one API key");
       return;
     }
 
@@ -83,11 +92,11 @@ export function ApiKeyForm({ workbenchId, initialConfigured }: ApiKeyFormProps) 
 
     try {
       const response = await fetch(`/api/workbenches/${workbenchId}/api-keys`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        credentials: 'include',
+        credentials: "include",
         body: JSON.stringify({
           ...(openaiKey && { openai: openaiKey }),
           ...(anthropicKey && { anthropic: anthropicKey }),
@@ -96,41 +105,46 @@ export function ApiKeyForm({ workbenchId, initialConfigured }: ApiKeyFormProps) 
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save API keys');
+        throw new Error(errorData.error || "Failed to save API keys");
       }
 
       const result = await response.json();
       setIsConfigured(result.configured);
-      setSaveMessage('API keys saved successfully');
+      setSaveMessage("API keys saved successfully");
 
       // Clear input fields after successful save
-      setOpenaiKey('');
-      setAnthropicKey('');
+      setOpenaiKey("");
+      setAnthropicKey("");
       setShowOpenaiKey(false);
       setShowAnthropicKey(false);
 
       // Clear message after 3 seconds
       setTimeout(() => setSaveMessage(null), 3000);
     } catch (err) {
-      setSaveMessage(err instanceof Error ? err.message : 'Failed to save API keys');
+      setSaveMessage(
+        err instanceof Error ? err.message : "Failed to save API keys",
+      );
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleTest = async (provider: 'openai' | 'anthropic') => {
+  const handleTest = async (provider: "openai" | "anthropic") => {
     setIsTesting(provider);
     setTestResults({ ...testResults, [provider]: undefined });
 
     try {
-      const response = await fetch(`/api/workbenches/${workbenchId}/api-keys/test`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const response = await fetch(
+        `/api/workbenches/${workbenchId}/api-keys/test`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({ provider }),
         },
-        credentials: 'include',
-        body: JSON.stringify({ provider }),
-      });
+      );
 
       const result = await response.json();
       setTestResults({ ...testResults, [provider]: result });
@@ -139,7 +153,7 @@ export function ApiKeyForm({ workbenchId, initialConfigured }: ApiKeyFormProps) 
         ...testResults,
         [provider]: {
           valid: false,
-          error: err instanceof Error ? err.message : 'Test failed',
+          error: err instanceof Error ? err.message : "Test failed",
         },
       });
     } finally {
@@ -164,8 +178,8 @@ export function ApiKeyForm({ workbenchId, initialConfigured }: ApiKeyFormProps) 
           <div className="relative flex-1">
             <Input
               id="openai-key"
-              type={showOpenaiKey ? 'text' : 'password'}
-              placeholder={isConfigured.openai ? 'sk-...****' : 'sk-...'}
+              type={showOpenaiKey ? "text" : "password"}
+              placeholder={isConfigured.openai ? "sk-...****" : "sk-..."}
               value={openaiKey}
               onChange={(e) => setOpenaiKey(e.target.value)}
               className="pr-10"
@@ -175,22 +189,26 @@ export function ApiKeyForm({ workbenchId, initialConfigured }: ApiKeyFormProps) 
               onClick={() => setShowOpenaiKey(!showOpenaiKey)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
-              {showOpenaiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showOpenaiKey ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
             </button>
           </div>
           <Button
             type="button"
             variant="outline"
-            onClick={() => handleTest('openai')}
-            disabled={!isConfigured.openai || isTesting === 'openai'}
+            onClick={() => handleTest("openai")}
+            disabled={!isConfigured.openai || isTesting === "openai"}
           >
-            {isTesting === 'openai' ? (
+            {isTesting === "openai" ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Testing...
               </>
             ) : (
-              'Test'
+              "Test"
             )}
           </Button>
           {isConfigured.openai && (
@@ -198,7 +216,7 @@ export function ApiKeyForm({ workbenchId, initialConfigured }: ApiKeyFormProps) 
               type="button"
               variant="destructive"
               size="icon"
-              onClick={() => setDeleteDialog('openai')}
+              onClick={() => setDeleteDialog("openai")}
               disabled={isDeleting}
             >
               <Trash2 className="h-4 w-4" />
@@ -208,7 +226,7 @@ export function ApiKeyForm({ workbenchId, initialConfigured }: ApiKeyFormProps) 
         {testResults.openai && (
           <div
             className={`text-sm flex items-center gap-1 ${
-              testResults.openai.valid ? 'text-green-600' : 'text-red-600'
+              testResults.openai.valid ? "text-green-600" : "text-red-600"
             }`}
           >
             {testResults.openai.valid ? (
@@ -219,7 +237,7 @@ export function ApiKeyForm({ workbenchId, initialConfigured }: ApiKeyFormProps) 
             ) : (
               <>
                 <X className="h-4 w-4" />
-                {testResults.openai.error || 'API key is invalid'}
+                {testResults.openai.error || "API key is invalid"}
               </>
             )}
           </div>
@@ -241,8 +259,10 @@ export function ApiKeyForm({ workbenchId, initialConfigured }: ApiKeyFormProps) 
           <div className="relative flex-1">
             <Input
               id="anthropic-key"
-              type={showAnthropicKey ? 'text' : 'password'}
-              placeholder={isConfigured.anthropic ? 'sk-ant-...****' : 'sk-ant-...'}
+              type={showAnthropicKey ? "text" : "password"}
+              placeholder={
+                isConfigured.anthropic ? "sk-ant-...****" : "sk-ant-..."
+              }
               value={anthropicKey}
               onChange={(e) => setAnthropicKey(e.target.value)}
               className="pr-10"
@@ -252,22 +272,26 @@ export function ApiKeyForm({ workbenchId, initialConfigured }: ApiKeyFormProps) 
               onClick={() => setShowAnthropicKey(!showAnthropicKey)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
-              {showAnthropicKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showAnthropicKey ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
             </button>
           </div>
           <Button
             type="button"
             variant="outline"
-            onClick={() => handleTest('anthropic')}
-            disabled={!isConfigured.anthropic || isTesting === 'anthropic'}
+            onClick={() => handleTest("anthropic")}
+            disabled={!isConfigured.anthropic || isTesting === "anthropic"}
           >
-            {isTesting === 'anthropic' ? (
+            {isTesting === "anthropic" ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Testing...
               </>
             ) : (
-              'Test'
+              "Test"
             )}
           </Button>
           {isConfigured.anthropic && (
@@ -275,7 +299,7 @@ export function ApiKeyForm({ workbenchId, initialConfigured }: ApiKeyFormProps) 
               type="button"
               variant="destructive"
               size="icon"
-              onClick={() => setDeleteDialog('anthropic')}
+              onClick={() => setDeleteDialog("anthropic")}
               disabled={isDeleting}
             >
               <Trash2 className="h-4 w-4" />
@@ -285,7 +309,7 @@ export function ApiKeyForm({ workbenchId, initialConfigured }: ApiKeyFormProps) 
         {testResults.anthropic && (
           <div
             className={`text-sm flex items-center gap-1 ${
-              testResults.anthropic.valid ? 'text-green-600' : 'text-red-600'
+              testResults.anthropic.valid ? "text-green-600" : "text-red-600"
             }`}
           >
             {testResults.anthropic.valid ? (
@@ -296,7 +320,7 @@ export function ApiKeyForm({ workbenchId, initialConfigured }: ApiKeyFormProps) 
             ) : (
               <>
                 <X className="h-4 w-4" />
-                {testResults.anthropic.error || 'API key is invalid'}
+                {testResults.anthropic.error || "API key is invalid"}
               </>
             )}
           </div>
@@ -315,15 +339,17 @@ export function ApiKeyForm({ workbenchId, initialConfigured }: ApiKeyFormProps) 
               Saving...
             </>
           ) : (
-            'Save API Keys'
+            "Save API Keys"
           )}
         </Button>
         {saveMessage && (
           <span
             className={`text-sm ${
-              saveMessage.includes('success') || saveMessage.includes('deleted') || saveMessage.includes('removed')
-                ? 'text-green-600'
-                : 'text-red-600'
+              saveMessage.includes("success") ||
+              saveMessage.includes("deleted") ||
+              saveMessage.includes("removed")
+                ? "text-green-600"
+                : "text-red-600"
             }`}
           >
             {saveMessage}
@@ -332,19 +358,25 @@ export function ApiKeyForm({ workbenchId, initialConfigured }: ApiKeyFormProps) 
       </div>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialog !== null} onOpenChange={() => setDeleteDialog(null)}>
+      <AlertDialog
+        open={deleteDialog !== null}
+        onOpenChange={() => setDeleteDialog(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remove API Key?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to remove your{' '}
-              {deleteDialog === 'openai' ? 'OpenAI' : 'Anthropic'} API key?
+              Are you sure you want to remove your{" "}
+              {deleteDialog === "openai" ? "OpenAI" : "Anthropic"} API key?
               <br />
               <br />
               <strong>
-                Any projects configured to use {deleteDialog === 'openai' ? 'OpenAI models (GPT-4, GPT-3.5, etc.)' : 'Claude models'}
-                {' '}will automatically fall back to the free tier model (GPT-3.5 Turbo)
-              </strong>{' '}
+                Any projects configured to use{" "}
+                {deleteDialog === "openai"
+                  ? "OpenAI models (GPT-4, GPT-5, etc.)"
+                  : "Claude models"}{" "}
+                will automatically fall back to the free tier model (GPT-5 Nano)
+              </strong>{" "}
               when generating outputs.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -361,7 +393,7 @@ export function ApiKeyForm({ workbenchId, initialConfigured }: ApiKeyFormProps) 
                   Removing...
                 </>
               ) : (
-                'Remove Key'
+                "Remove Key"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

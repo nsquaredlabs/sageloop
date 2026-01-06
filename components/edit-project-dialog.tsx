@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -11,11 +11,11 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Settings, Plus, Trash2 } from 'lucide-react';
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Settings, Plus, Trash2 } from "lucide-react";
 
 interface EditProjectDialogProps {
   projectId: string;
@@ -23,7 +23,6 @@ interface EditProjectDialogProps {
   currentDescription: string | null;
   currentSystemPrompt: string;
   currentModel: string;
-  currentTemperature: number;
   currentVariables?: Record<string, string>;
 }
 
@@ -33,24 +32,24 @@ export function EditProjectDialog({
   currentDescription,
   currentSystemPrompt,
   currentModel,
-  currentTemperature,
   currentVariables = {},
 }: EditProjectDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState(currentName);
-  const [description, setDescription] = useState(currentDescription || '');
+  const [description, setDescription] = useState(currentDescription || "");
   const [systemPrompt, setSystemPrompt] = useState(currentSystemPrompt);
-  const [variables, setVariables] = useState<Record<string, string>>(currentVariables);
-  const [newVarKey, setNewVarKey] = useState('');
-  const [newVarValue, setNewVarValue] = useState('');
+  const [variables, setVariables] =
+    useState<Record<string, string>>(currentVariables);
+  const [newVarKey, setNewVarKey] = useState("");
+  const [newVarValue, setNewVarValue] = useState("");
 
   const handleAddVariable = () => {
     if (newVarKey && !variables[newVarKey]) {
       setVariables({ ...variables, [newVarKey]: newVarValue });
-      setNewVarKey('');
-      setNewVarValue('');
+      setNewVarKey("");
+      setNewVarValue("");
     }
   };
 
@@ -66,32 +65,32 @@ export function EditProjectDialog({
 
     try {
       const response = await fetch(`/api/projects/${projectId}`, {
-        method: 'PATCH',
+        method: "PATCH",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        credentials: 'include',
+        credentials: "include",
         body: JSON.stringify({
           name,
           description: description || null,
           model_config: {
             model: currentModel,
-            temperature: currentTemperature,
             system_prompt: systemPrompt,
-            variables: Object.keys(variables).length > 0 ? variables : undefined,
+            variables:
+              Object.keys(variables).length > 0 ? variables : undefined,
           },
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update project');
+        throw new Error("Failed to update project");
       }
 
       setOpen(false);
       router.refresh();
     } catch (error) {
-      console.error('Error updating project:', error);
-      alert('Failed to update project. Please try again.');
+      console.error("Error updating project:", error);
+      alert("Failed to update project. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -150,17 +149,27 @@ export function EditProjectDialog({
             <div className="grid gap-2">
               <Label>Variables</Label>
               <p className="text-xs text-muted-foreground mb-2">
-                Add variables to use in your system prompt with {'{{variable_name}}'} syntax.
+                Add variables to use in your system prompt with{" "}
+                {"{{variable_name}}"} syntax.
               </p>
 
               {/* Existing variables */}
               {Object.entries(variables).length > 0 && (
                 <div className="space-y-2 mb-2">
                   {Object.entries(variables).map(([key, value]) => (
-                    <div key={key} className="flex gap-2 items-center p-2 border rounded-md bg-muted/50">
+                    <div
+                      key={key}
+                      className="flex gap-2 items-center p-2 border rounded-md bg-muted/50"
+                    >
                       <div className="flex-1 grid grid-cols-2 gap-2">
-                        <div className="font-mono text-sm">{'{{'}{key}{'}}'}</div>
-                        <div className="text-sm text-muted-foreground">{value}</div>
+                        <div className="font-mono text-sm">
+                          {"{{"}
+                          {key}
+                          {"}}"}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {value}
+                        </div>
                       </div>
                       <Button
                         type="button"
@@ -212,7 +221,7 @@ export function EditProjectDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? 'Saving...' : 'Save Changes'}
+              {loading ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
         </form>
