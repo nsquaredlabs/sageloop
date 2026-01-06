@@ -1,27 +1,35 @@
-import { createServerClient } from '@/lib/supabase';
-import { redirect } from 'next/navigation';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Plus, Calendar, FileText } from 'lucide-react';
+import { createServerClient } from "@/lib/supabase";
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Calendar, FileText } from "lucide-react";
 
 export default async function ProjectsPage() {
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect('/login');
+    redirect("/login");
   }
 
   // Fetch all projects from Supabase (RLS automatically filters by user's workbenches)
   const { data: projects, error } = await supabase
-    .from('projects')
-    .select('*, workbenches(name)')
-    .order('created_at', { ascending: false });
+    .from("projects")
+    .select("*, workbenches(name)")
+    .order("created_at", { ascending: false });
 
   if (error) {
-    console.error('Error fetching projects:', error);
+    console.error("Error fetching projects:", error);
   }
 
   return (
@@ -61,7 +69,6 @@ export default async function ProjectsPage() {
 function ProjectCard({ project }: { project: any }) {
   const modelConfig = project.model_config as {
     model?: string;
-    temperature?: number;
     system_prompt?: string;
   };
 
@@ -71,7 +78,7 @@ function ProjectCard({ project }: { project: any }) {
         <CardHeader>
           <div className="flex justify-between items-start">
             <CardTitle className="text-xl">{project.name}</CardTitle>
-            <Badge variant="secondary">{modelConfig.model || 'gpt-4'}</Badge>
+            <Badge variant="secondary">{modelConfig.model || "gpt-4"}</Badge>
           </div>
           {project.description && (
             <CardDescription className="line-clamp-2">
@@ -82,10 +89,10 @@ function ProjectCard({ project }: { project: any }) {
         <CardContent>
           <div className="flex items-center text-sm text-muted-foreground">
             <Calendar className="mr-2 h-4 w-4" />
-            {new Date(project.created_at).toLocaleDateString('en-US', {
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric'
+            {new Date(project.created_at).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
             })}
           </div>
         </CardContent>

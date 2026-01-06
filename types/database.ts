@@ -5,14 +5,14 @@
  * These replace "as any" casts throughout the codebase.
  */
 
-import type { Database } from './supabase';
+import type { Database } from "./supabase";
 import type {
   ExtractionCriteria,
   FailureAnalysis,
   FailureCluster,
   QualityCriterion,
   RatingMetadata,
-} from './api';
+} from "./api";
 
 // Re-export extraction types from API types for consistency
 export type {
@@ -30,10 +30,12 @@ export type {
 /**
  * Configuration for AI model used in a project
  * Stored in projects.model_config JSONB column
+ *
+ * Note: Temperature has been removed as of 2025 to align with
+ * best practices for consistent outputs, especially for reasoning models.
  */
 export interface ModelConfig {
   model: string;
-  temperature?: number;
   system_prompt?: string;
   variables?: Record<string, string>;
 }
@@ -45,10 +47,12 @@ export interface ModelConfig {
 /**
  * Snapshot of model configuration and usage at generation time
  * Stored in outputs.model_snapshot JSONB column
+ *
+ * Note: Temperature has been removed as of 2025 to align with
+ * best practices for consistent outputs, especially for reasoning models.
  */
 export interface ModelSnapshot {
   model: string;
-  temperature: number;
   system_prompt?: string;
   variables?: Record<string, string>;
   version?: number;
@@ -81,23 +85,35 @@ export interface UserApiKeys {
  * Augment generated Supabase types with proper JSONB column types
  */
 
-export type Project = Omit<Database['public']['Tables']['projects']['Row'], 'model_config'> & {
+export type Project = Omit<
+  Database["public"]["Tables"]["projects"]["Row"],
+  "model_config"
+> & {
   model_config: ModelConfig;
 };
 
-export type Output = Omit<Database['public']['Tables']['outputs']['Row'], 'model_snapshot'> & {
+export type Output = Omit<
+  Database["public"]["Tables"]["outputs"]["Row"],
+  "model_snapshot"
+> & {
   model_snapshot: ModelSnapshot;
 };
 
-export type Extraction = Omit<Database['public']['Tables']['extractions']['Row'], 'criteria'> & {
+export type Extraction = Omit<
+  Database["public"]["Tables"]["extractions"]["Row"],
+  "criteria"
+> & {
   criteria: ExtractionCriteria;
 };
 
-export type Rating = Database['public']['Tables']['ratings']['Row'] & {
+export type Rating = Database["public"]["Tables"]["ratings"]["Row"] & {
   metadata?: RatingMetadata;
 };
 
-export type Metric = Omit<Database['public']['Tables']['metrics']['Row'], 'criteria_breakdown'> & {
+export type Metric = Omit<
+  Database["public"]["Tables"]["metrics"]["Row"],
+  "criteria_breakdown"
+> & {
   criteria_breakdown: Record<string, string>;
 };
 
@@ -139,7 +155,7 @@ export interface Subscription {
   id: string;
   workbench_id: string;
   plan_id: string;
-  status: 'active' | 'past_due' | 'canceled' | 'trialing';
+  status: "active" | "past_due" | "canceled" | "trialing";
   current_period_start: string;
   current_period_end: string;
   standard_outputs_used: number;
@@ -157,7 +173,7 @@ export interface UsageEvent {
   id: string;
   workbench_id: string;
   subscription_id: string | null;
-  model_tier: 'free' | 'standard' | 'premium' | 'enterprise';
+  model_tier: "free" | "standard" | "premium" | "enterprise";
   model_name: string;
   output_count: number;
   input_tokens: number | null;

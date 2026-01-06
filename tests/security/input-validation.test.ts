@@ -154,21 +154,17 @@ describe("Input Validation Security (CWE-20)", () => {
       }
     });
 
-    it("should reject invalid temperature values", () => {
-      const invalidTemps = [-0.1, 2.1, NaN, Infinity];
+    it("should accept model config without temperature (removed for consistent outputs)", () => {
+      // Temperature is no longer part of model_config
+      const result = createProjectSchema.safeParse({
+        name: "Test",
+        model_config: {
+          model: "gpt-4o-mini",
+          system_prompt: "Test",
+        },
+      });
 
-      for (const temp of invalidTemps) {
-        const result = createProjectSchema.safeParse({
-          name: "Test",
-          model_config: {
-            model: "gpt-4o-mini",
-            temperature: temp,
-            system_prompt: "Test",
-          },
-        });
-
-        expect(result.success).toBe(false);
-      }
+      expect(result.success).toBe(true);
     });
   });
 

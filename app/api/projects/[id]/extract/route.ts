@@ -193,7 +193,6 @@ export async function POST(request: Request, { params }: RouteParams) {
     const result = await generateCompletion({
       provider: SYSTEM_MODEL_CONFIG.provider,
       model: SYSTEM_MODEL_CONFIG.model,
-      temperature: SYSTEM_MODEL_CONFIG.temperature,
 
       // OUR instructions are the system prompt (cannot be overridden)
       systemPrompt: `You are an expert at analyzing AI output quality patterns across multiple dimensions.

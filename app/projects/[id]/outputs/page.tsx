@@ -87,7 +87,6 @@ export default async function OutputsPage({
 
   const modelConfig = project.model_config as {
     model?: string;
-    temperature?: number;
     system_prompt?: string;
   };
 

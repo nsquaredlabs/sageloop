@@ -161,7 +161,6 @@ export async function GET(request: Request, { params }: RouteParams) {
           name: project.name,
           model_config: {
             model: modelConfig.model || "unknown",
-            temperature: modelConfig.temperature || 0.7,
             system_prompt: modelConfig.system_prompt,
           },
         },
@@ -202,7 +201,6 @@ export async function GET(request: Request, { params }: RouteParams) {
           name: project.name,
           model_config: {
             model: modelConfig.model || "unknown",
-            temperature: modelConfig.temperature || 0.7,
             system_prompt: modelConfig.system_prompt,
           },
         },
@@ -274,7 +272,6 @@ function generateTestSuite(
     },
     model_config: {
       model: modelConfig.model,
-      temperature: modelConfig.temperature,
       system_prompt: modelConfig.system_prompt,
     },
     golden_examples: goldenExamples
@@ -349,7 +346,6 @@ function generateMarkdownDoc(
   lines.push(`## Model Configuration`);
   lines.push("");
   lines.push(`- **Model**: ${modelConfig.model}`);
-  lines.push(`- **Temperature**: ${modelConfig.temperature}`);
   lines.push("");
   if (modelConfig.system_prompt) {
     lines.push(`### System Prompt`);

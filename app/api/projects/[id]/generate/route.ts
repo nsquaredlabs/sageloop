@@ -166,7 +166,6 @@ export async function POST(_request: Request, { params }: RouteParams) {
         const result = await generateCompletion({
           provider,
           model: modelName,
-          temperature: modelConfig.temperature ?? 0.7,
           systemPrompt: modelConfig.system_prompt,
           userMessage: scenario.input_text,
           apiKey,
@@ -192,7 +191,6 @@ export async function POST(_request: Request, { params }: RouteParams) {
             output_text: outputText,
             model_snapshot: {
               model: modelName,
-              temperature: modelConfig.temperature ?? 0.7,
               system_prompt: modelConfig.system_prompt,
               variables: modelConfig.variables,
               ...usage,

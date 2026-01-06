@@ -1,8 +1,8 @@
-import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
-import { parseId } from '@/lib/utils';
-import { generateCompletion } from '@/lib/ai/generation';
-import { SYSTEM_MODEL_CONFIG } from '@/lib/ai/system-model-config';
+import { NextResponse } from "next/server";
+import { createServerClient } from "@/lib/supabase";
+import { parseId } from "@/lib/utils";
+import { generateCompletion } from "@/lib/ai/generation";
+import { SYSTEM_MODEL_CONFIG } from "@/lib/ai/system-model-config";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -17,39 +17,38 @@ interface FixCluster {
 export async function POST(request: Request, { params }: RouteParams) {
   try {
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { id: projectIdString } = await params;
     const projectId = parseId(projectIdString);
     const body = await request.json();
-    const { currentPrompt, clusters } = body as { currentPrompt: string; clusters: FixCluster[] };
+    const { currentPrompt, clusters } = body as {
+      currentPrompt: string;
+      clusters: FixCluster[];
+    };
 
     if (!currentPrompt || !clusters || !Array.isArray(clusters)) {
       return NextResponse.json(
-        { error: 'currentPrompt and clusters are required' },
-        { status: 400 }
+        { error: "currentPrompt and clusters are required" },
+        { status: 400 },
       );
     }
 
     // Verify project access
     const { data: project, error: projectError } = await supabase
-      .from('projects')
-      .select('id')
-      .eq('id', projectId)
+      .from("projects")
+      .select("id")
+      .eq("id", projectId)
       .single();
 
     if (projectError || !project) {
-      return NextResponse.json(
-        { error: 'Project not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
     // Use GPT-4 to intelligently integrate all fixes into the prompt
@@ -57,7 +56,6 @@ export async function POST(request: Request, { params }: RouteParams) {
     const result = await generateCompletion({
       provider: SYSTEM_MODEL_CONFIG.provider,
       model: SYSTEM_MODEL_CONFIG.model,
-      temperature: SYSTEM_MODEL_CONFIG.temperature,
       systemPrompt: `You are an expert at improving system prompts for LLMs. Your task is to integrate multiple suggested fixes into an existing system prompt in a coherent, natural way.
 
 IMPORTANT GUIDELINES:
@@ -75,11 +73,15 @@ ${currentPrompt}
 """
 
 Fixes to Integrate (${clusters.length}):
-${clusters.map((c, i) => `
+${clusters
+  .map(
+    (c, i) => `
 ${i + 1}. ${c.name}
    Root Cause: ${c.root_cause}
    Fix: ${c.suggested_fix}
-`).join('\n')}
+`,
+  )
+  .join("\n")}
 
 Integrate all ${clusters.length} fixes into the system prompt in a natural, coherent way. Return ONLY the updated prompt.`,
       apiKey: undefined, // Use system key from env
@@ -92,10 +94,10 @@ Integrate all ${clusters.length} fixes into the system prompt in a natural, cohe
       fixesApplied: clusters.length,
     });
   } catch (error) {
-    console.error('API error:', error);
+    console.error("API error:", error);
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      { error: "Internal server error" },
+      { status: 500 },
     );
   }
 }

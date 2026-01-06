@@ -29,7 +29,6 @@ export interface CreateProjectRequest {
   description?: string;
   model_config: {
     model: string;
-    temperature?: number;
     system_prompt?: string;
   };
 }
@@ -41,7 +40,6 @@ export interface CreateProjectResponse {
     description: string | null;
     model_config: {
       model: string;
-      temperature?: number;
       system_prompt?: string;
     };
     workbench_id: string;
@@ -59,7 +57,6 @@ export interface GetProjectsResponse {
     description: string | null;
     model_config: {
       model: string;
-      temperature?: number;
       system_prompt?: string;
     };
     workbench_id: string;
@@ -113,7 +110,6 @@ export interface GenerateOutputsResponse {
     generated_at: string | null;
     model_snapshot: {
       model: string;
-      temperature: number;
       system_prompt?: string;
       completion_tokens?: number;
       prompt_tokens?: number;
@@ -336,7 +332,6 @@ export interface ExportResponse {
       name: string;
       model_config: {
         model: string;
-        temperature?: number;
         system_prompt?: string;
       };
     };
