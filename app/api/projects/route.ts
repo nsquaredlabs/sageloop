@@ -86,6 +86,37 @@ export async function POST(request: Request) {
 
     if (error) {
       console.error("Supabase error:", error);
+
+      // Handle duplicate key errors gracefully
+      if (error.code === "23505") {
+        // Unique constraint violation - likely a race condition or sequence issue
+        // Try once more - the identity sequence should auto-increment
+        const { data: retryData, error: retryError } = await supabase
+          .from("projects")
+          .insert({
+            name,
+            description: description || null,
+            model_config,
+            workbench_id: userWorkbenches.workbench_id,
+            created_by: user.id,
+          })
+          .select()
+          .single();
+
+        if (retryError) {
+          console.error("Retry also failed:", retryError);
+          return NextResponse.json(
+            {
+              error: "Failed to create project. Please try again.",
+              code: retryError.code,
+            },
+            { status: 500 },
+          );
+        }
+
+        return NextResponse.json({ data: retryData }, { status: 201 });
+      }
+
       return NextResponse.json(
         { error: "Failed to create project" },
         { status: 500 },

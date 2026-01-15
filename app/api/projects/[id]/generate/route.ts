@@ -9,6 +9,7 @@ import {
   getUsageHeaders,
 } from "@/lib/api/quota-middleware";
 import { getModelTier } from "@/lib/ai/model-tiers";
+import { DEFAULT_MODEL_FALLBACK } from "@/lib/ai/default-models";
 import { handleApiError } from "@/lib/api/errors";
 import {
   validateSystemPrompt,
@@ -131,7 +132,7 @@ export async function POST(_request: Request, { params }: RouteParams) {
 
     // Determine which provider and model to use
     const { provider, modelName, apiKey } = resolveProvider(
-      modelConfig.model || "gpt-3.5-turbo",
+      modelConfig.model || DEFAULT_MODEL_FALLBACK,
       apiKeys,
     );
 

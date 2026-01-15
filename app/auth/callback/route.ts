@@ -225,6 +225,16 @@ export async function GET(request: Request): Promise<Response> {
       linkedToExisting,
     });
 
+    // Check if user has completed onboarding
+    const onboardingCompleted =
+      user.user_metadata?.onboarding_completed === true;
+    const onboardingSkipped = user.user_metadata?.onboarding_skipped === true;
+
+    // New users go to onboarding, returning users go to projects
+    if (isNewUser && !onboardingCompleted && !onboardingSkipped) {
+      return NextResponse.redirect(`${requestUrl.origin}/onboarding`);
+    }
+
     // Redirect to projects page
     return NextResponse.redirect(`${requestUrl.origin}/projects`);
   } catch (error) {

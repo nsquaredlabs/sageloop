@@ -89,7 +89,6 @@ describe("Input Validation Security (CWE-20)", () => {
           name,
           model_config: {
             model: "gpt-4o-mini",
-            temperature: 0.7,
             system_prompt: "You are a helpful assistant",
           },
         });

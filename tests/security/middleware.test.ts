@@ -135,13 +135,16 @@ describe("Middleware - Protected Routes", () => {
     expect(response.headers.get("location")).toContain("/login");
   });
 
-  it("should allow authenticated users to access /projects", async () => {
+  it("should allow authenticated users with completed onboarding to access /projects", async () => {
     const { createServerClient } = await import("@supabase/ssr");
     const mockGetUser = vi.fn().mockResolvedValue({
       data: {
         user: {
           id: "test-user-id",
           email: "test@example.com",
+          user_metadata: {
+            onboarding_completed: true,
+          },
         },
       },
     });
@@ -155,16 +158,42 @@ describe("Middleware - Protected Routes", () => {
 
     expect(response.status).not.toBe(307); // Should not redirect
   });
-});
 
-describe("Middleware - Authenticated User Redirects", () => {
-  it("should redirect authenticated users from /login to /projects", async () => {
+  it("should redirect authenticated users without completed onboarding from /projects to /onboarding", async () => {
     const { createServerClient } = await import("@supabase/ssr");
     const mockGetUser = vi.fn().mockResolvedValue({
       data: {
         user: {
           id: "test-user-id",
           email: "test@example.com",
+          user_metadata: {}, // No onboarding_completed flag
+        },
+      },
+    });
+
+    vi.mocked(createServerClient).mockReturnValue({
+      auth: { getUser: mockGetUser },
+    } as any);
+
+    const request = new NextRequest("http://localhost:3000/projects");
+    const response = await middleware(request);
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toContain("/onboarding");
+  });
+});
+
+describe("Middleware - Authenticated User Redirects", () => {
+  it("should redirect authenticated users with completed onboarding from /login to /projects", async () => {
+    const { createServerClient } = await import("@supabase/ssr");
+    const mockGetUser = vi.fn().mockResolvedValue({
+      data: {
+        user: {
+          id: "test-user-id",
+          email: "test@example.com",
+          user_metadata: {
+            onboarding_completed: true,
+          },
         },
       },
     });
@@ -180,13 +209,39 @@ describe("Middleware - Authenticated User Redirects", () => {
     expect(response.headers.get("location")).toContain("/projects");
   });
 
-  it("should redirect authenticated users from /signup to /projects", async () => {
+  it("should redirect authenticated users without completed onboarding from /login to /onboarding", async () => {
     const { createServerClient } = await import("@supabase/ssr");
     const mockGetUser = vi.fn().mockResolvedValue({
       data: {
         user: {
           id: "test-user-id",
           email: "test@example.com",
+          user_metadata: {}, // No onboarding_completed flag
+        },
+      },
+    });
+
+    vi.mocked(createServerClient).mockReturnValue({
+      auth: { getUser: mockGetUser },
+    } as any);
+
+    const request = new NextRequest("http://localhost:3000/login");
+    const response = await middleware(request);
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toContain("/onboarding");
+  });
+
+  it("should redirect authenticated users with completed onboarding from /signup to /projects", async () => {
+    const { createServerClient } = await import("@supabase/ssr");
+    const mockGetUser = vi.fn().mockResolvedValue({
+      data: {
+        user: {
+          id: "test-user-id",
+          email: "test@example.com",
+          user_metadata: {
+            onboarding_completed: true,
+          },
         },
       },
     });
@@ -202,13 +257,39 @@ describe("Middleware - Authenticated User Redirects", () => {
     expect(response.headers.get("location")).toContain("/projects");
   });
 
-  it("should redirect authenticated users from /forgot-password to /projects", async () => {
+  it("should redirect authenticated users without completed onboarding from /signup to /onboarding", async () => {
     const { createServerClient } = await import("@supabase/ssr");
     const mockGetUser = vi.fn().mockResolvedValue({
       data: {
         user: {
           id: "test-user-id",
           email: "test@example.com",
+          user_metadata: {}, // No onboarding_completed flag
+        },
+      },
+    });
+
+    vi.mocked(createServerClient).mockReturnValue({
+      auth: { getUser: mockGetUser },
+    } as any);
+
+    const request = new NextRequest("http://localhost:3000/signup");
+    const response = await middleware(request);
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toContain("/onboarding");
+  });
+
+  it("should redirect authenticated users with completed onboarding from /forgot-password to /projects", async () => {
+    const { createServerClient } = await import("@supabase/ssr");
+    const mockGetUser = vi.fn().mockResolvedValue({
+      data: {
+        user: {
+          id: "test-user-id",
+          email: "test@example.com",
+          user_metadata: {
+            onboarding_completed: true,
+          },
         },
       },
     });
@@ -223,6 +304,30 @@ describe("Middleware - Authenticated User Redirects", () => {
     // Authenticated users shouldn't need password reset
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toContain("/projects");
+  });
+
+  it("should redirect authenticated users without completed onboarding from /forgot-password to /onboarding", async () => {
+    const { createServerClient } = await import("@supabase/ssr");
+    const mockGetUser = vi.fn().mockResolvedValue({
+      data: {
+        user: {
+          id: "test-user-id",
+          email: "test@example.com",
+          user_metadata: {}, // No onboarding_completed flag
+        },
+      },
+    });
+
+    vi.mocked(createServerClient).mockReturnValue({
+      auth: { getUser: mockGetUser },
+    } as any);
+
+    const request = new NextRequest("http://localhost:3000/forgot-password");
+    const response = await middleware(request);
+
+    // Authenticated users without onboarding should go to onboarding
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toContain("/onboarding");
   });
 });
 
@@ -359,5 +464,118 @@ describe("Middleware - Password Reset Flow Regression Prevention", () => {
     });
 
     expect(requiredAuthPaths).toHaveLength(4);
+  });
+});
+
+describe("Middleware - Onboarding Flow", () => {
+  it("should allow authenticated users without completed onboarding to access /onboarding", async () => {
+    const { createServerClient } = await import("@supabase/ssr");
+    const mockGetUser = vi.fn().mockResolvedValue({
+      data: {
+        user: {
+          id: "test-user-id",
+          email: "test@example.com",
+          user_metadata: {}, // No onboarding_completed flag
+        },
+      },
+    });
+
+    vi.mocked(createServerClient).mockReturnValue({
+      auth: { getUser: mockGetUser },
+    } as any);
+
+    const request = new NextRequest("http://localhost:3000/onboarding");
+    const response = await middleware(request);
+
+    expect(response.status).not.toBe(307); // Should not redirect
+  });
+
+  it("should redirect authenticated users with completed onboarding from /onboarding to /projects", async () => {
+    const { createServerClient } = await import("@supabase/ssr");
+    const mockGetUser = vi.fn().mockResolvedValue({
+      data: {
+        user: {
+          id: "test-user-id",
+          email: "test@example.com",
+          user_metadata: {
+            onboarding_completed: true,
+          },
+        },
+      },
+    });
+
+    vi.mocked(createServerClient).mockReturnValue({
+      auth: { getUser: mockGetUser },
+    } as any);
+
+    const request = new NextRequest("http://localhost:3000/onboarding");
+    const response = await middleware(request);
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toContain("/projects");
+  });
+
+  it("should redirect authenticated users with skipped onboarding from /onboarding to /projects", async () => {
+    const { createServerClient } = await import("@supabase/ssr");
+    const mockGetUser = vi.fn().mockResolvedValue({
+      data: {
+        user: {
+          id: "test-user-id",
+          email: "test@example.com",
+          user_metadata: {
+            onboarding_skipped: true,
+          },
+        },
+      },
+    });
+
+    vi.mocked(createServerClient).mockReturnValue({
+      auth: { getUser: mockGetUser },
+    } as any);
+
+    const request = new NextRequest("http://localhost:3000/onboarding");
+    const response = await middleware(request);
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toContain("/projects");
+  });
+
+  it("should allow authenticated users with skipped onboarding to access /projects", async () => {
+    const { createServerClient } = await import("@supabase/ssr");
+    const mockGetUser = vi.fn().mockResolvedValue({
+      data: {
+        user: {
+          id: "test-user-id",
+          email: "test@example.com",
+          user_metadata: {
+            onboarding_skipped: true,
+          },
+        },
+      },
+    });
+
+    vi.mocked(createServerClient).mockReturnValue({
+      auth: { getUser: mockGetUser },
+    } as any);
+
+    const request = new NextRequest("http://localhost:3000/projects");
+    const response = await middleware(request);
+
+    expect(response.status).not.toBe(307); // Should not redirect
+  });
+
+  it("should redirect unauthenticated users from /onboarding to /login", async () => {
+    const { createServerClient } = await import("@supabase/ssr");
+    const mockGetUser = vi.fn().mockResolvedValue({ data: { user: null } });
+
+    vi.mocked(createServerClient).mockReturnValue({
+      auth: { getUser: mockGetUser },
+    } as any);
+
+    const request = new NextRequest("http://localhost:3000/onboarding");
+    const response = await middleware(request);
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toContain("/login");
   });
 });
