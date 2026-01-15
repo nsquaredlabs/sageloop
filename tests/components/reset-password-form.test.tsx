@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { ResetPasswordForm } from '@/components/auth/reset-password-form';
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { ResetPasswordForm } from "@/components/auth/reset-password-form";
 
 /**
  * Reset Password Form Tests
@@ -17,7 +17,7 @@ import { ResetPasswordForm } from '@/components/auth/reset-password-form';
 const mockGetSession = vi.fn();
 const mockUpdateUser = vi.fn();
 
-vi.mock('@/lib/supabase/client', () => ({
+vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
     auth: {
       getSession: mockGetSession,
@@ -30,21 +30,21 @@ vi.mock('@/lib/supabase/client', () => ({
 const mockPush = vi.fn();
 const mockRefresh = vi.fn();
 
-vi.mock('next/navigation', () => ({
+vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: mockPush,
     refresh: mockRefresh,
   }),
 }));
 
-describe('ResetPasswordForm - Session Validation', () => {
+describe("ResetPasswordForm - Session Validation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('should show loading state while checking session', () => {
-    mockGetSession.mockImplementation(() =>
-      new Promise(() => {}) // Never resolves
+  it("should show loading state while checking session", () => {
+    mockGetSession.mockImplementation(
+      () => new Promise(() => {}), // Never resolves
     );
 
     render(<ResetPasswordForm />);
@@ -52,7 +52,7 @@ describe('ResetPasswordForm - Session Validation', () => {
     expect(screen.getByText(/verifying reset link/i)).toBeInTheDocument();
   });
 
-  it('should show error for invalid session', async () => {
+  it("should show error for invalid session", async () => {
     mockGetSession.mockResolvedValue({ data: { session: null } });
 
     render(<ResetPasswordForm />);
@@ -71,20 +71,22 @@ describe('ResetPasswordForm - Session Validation', () => {
       expect(screen.getByText(/invalid or has expired/i)).toBeInTheDocument();
     });
 
-    const requestButton = screen.getByRole('button', { name: /request new reset link/i });
+    const requestButton = screen.getByRole("button", {
+      name: /request new reset link/i,
+    });
     expect(requestButton).toBeInTheDocument();
 
     fireEvent.click(requestButton);
 
-    expect(mockPush).toHaveBeenCalledWith('/forgot-password');
+    expect(mockPush).toHaveBeenCalledWith("/forgot-password");
   });
 
-  it('should show password form for valid session', async () => {
+  it("should show password form for valid session", async () => {
     mockGetSession.mockResolvedValue({
       data: {
         session: {
-          access_token: 'valid-token',
-          user: { id: 'user-id' },
+          access_token: "valid-token",
+          user: { id: "user-id" },
         },
       },
     });
@@ -98,20 +100,20 @@ describe('ResetPasswordForm - Session Validation', () => {
   });
 });
 
-describe('ResetPasswordForm - Password Validation', () => {
+describe("ResetPasswordForm - Password Validation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetSession.mockResolvedValue({
       data: {
         session: {
-          access_token: 'valid-token',
-          user: { id: 'user-id' },
+          access_token: "valid-token",
+          user: { id: "user-id" },
         },
       },
     });
   });
 
-  it('should render password input fields', async () => {
+  it("should render password input fields", async () => {
     render(<ResetPasswordForm />);
 
     await waitFor(() => {
@@ -120,15 +122,17 @@ describe('ResetPasswordForm - Password Validation', () => {
     });
   });
 
-  it('should show password requirements', async () => {
+  it("should show password requirements", async () => {
     render(<ResetPasswordForm />);
 
     await waitFor(() => {
-      expect(screen.getByText(/must be at least 6 characters/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/must be at least 6 characters/i),
+      ).toBeInTheDocument();
     });
   });
 
-  it('should validate passwords match', async () => {
+  it("should validate passwords match", async () => {
     mockUpdateUser.mockResolvedValue({ error: null });
 
     render(<ResetPasswordForm />);
@@ -139,10 +143,12 @@ describe('ResetPasswordForm - Password Validation', () => {
 
     const passwordInput = screen.getByLabelText(/new password/i);
     const confirmInput = screen.getByLabelText(/confirm password/i);
-    const submitButton = screen.getByRole('button', { name: /update password/i });
+    const submitButton = screen.getByRole("button", {
+      name: /update password/i,
+    });
 
-    fireEvent.change(passwordInput, { target: { value: 'password123' } });
-    fireEvent.change(confirmInput, { target: { value: 'different123' } });
+    fireEvent.change(passwordInput, { target: { value: "password123" } });
+    fireEvent.change(confirmInput, { target: { value: "different123" } });
     fireEvent.click(submitButton);
 
     await waitFor(() => {
@@ -153,7 +159,7 @@ describe('ResetPasswordForm - Password Validation', () => {
     expect(mockUpdateUser).not.toHaveBeenCalled();
   });
 
-  it('should validate minimum password length', async () => {
+  it("should validate minimum password length", async () => {
     mockUpdateUser.mockResolvedValue({ error: null });
 
     render(<ResetPasswordForm />);
@@ -164,15 +170,19 @@ describe('ResetPasswordForm - Password Validation', () => {
 
     const passwordInput = screen.getByLabelText(/new password/i);
     const confirmInput = screen.getByLabelText(/confirm password/i);
-    const submitButton = screen.getByRole('button', { name: /update password/i });
+    const submitButton = screen.getByRole("button", {
+      name: /update password/i,
+    });
 
-    fireEvent.change(passwordInput, { target: { value: 'short' } });
-    fireEvent.change(confirmInput, { target: { value: 'short' } });
+    fireEvent.change(passwordInput, { target: { value: "short" } });
+    fireEvent.change(confirmInput, { target: { value: "short" } });
     fireEvent.click(submitButton);
 
     await waitFor(() => {
       // Look for the error message specifically, not the helper text
-      const errorMessages = screen.getAllByText(/must be at least 6 characters/i);
+      const errorMessages = screen.getAllByText(
+        /must be at least 6 characters/i,
+      );
       expect(errorMessages.length).toBeGreaterThan(0);
     });
 
@@ -180,49 +190,57 @@ describe('ResetPasswordForm - Password Validation', () => {
     expect(mockUpdateUser).not.toHaveBeenCalled();
   });
 
-  it('should require both password fields', async () => {
+  it("should require both password fields", async () => {
     render(<ResetPasswordForm />);
 
     await waitFor(() => {
       expect(screen.getByLabelText(/new password/i)).toBeInTheDocument();
     });
 
-    const passwordInput = screen.getByLabelText(/new password/i) as HTMLInputElement;
-    const confirmInput = screen.getByLabelText(/confirm password/i) as HTMLInputElement;
+    const passwordInput = screen.getByLabelText(
+      /new password/i,
+    ) as HTMLInputElement;
+    const confirmInput = screen.getByLabelText(
+      /confirm password/i,
+    ) as HTMLInputElement;
 
     expect(passwordInput).toBeRequired();
     expect(confirmInput).toBeRequired();
   });
 
-  it('should enforce minimum length attribute', async () => {
+  it("should enforce minimum length attribute", async () => {
     render(<ResetPasswordForm />);
 
     await waitFor(() => {
       expect(screen.getByLabelText(/new password/i)).toBeInTheDocument();
     });
 
-    const passwordInput = screen.getByLabelText(/new password/i) as HTMLInputElement;
-    const confirmInput = screen.getByLabelText(/confirm password/i) as HTMLInputElement;
+    const passwordInput = screen.getByLabelText(
+      /new password/i,
+    ) as HTMLInputElement;
+    const confirmInput = screen.getByLabelText(
+      /confirm password/i,
+    ) as HTMLInputElement;
 
-    expect(passwordInput).toHaveAttribute('minLength', '6');
-    expect(confirmInput).toHaveAttribute('minLength', '6');
+    expect(passwordInput).toHaveAttribute("minLength", "6");
+    expect(confirmInput).toHaveAttribute("minLength", "6");
   });
 });
 
-describe('ResetPasswordForm - Password Update', () => {
+describe("ResetPasswordForm - Password Update", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetSession.mockResolvedValue({
       data: {
         session: {
-          access_token: 'valid-token',
-          user: { id: 'user-id' },
+          access_token: "valid-token",
+          user: { id: "user-id" },
         },
       },
     });
   });
 
-  it('should handle successful password update', async () => {
+  it("should handle successful password update", async () => {
     mockUpdateUser.mockResolvedValue({ error: null });
 
     render(<ResetPasswordForm />);
@@ -233,26 +251,31 @@ describe('ResetPasswordForm - Password Update', () => {
 
     const passwordInput = screen.getByLabelText(/new password/i);
     const confirmInput = screen.getByLabelText(/confirm password/i);
-    const submitButton = screen.getByRole('button', { name: /update password/i });
+    const submitButton = screen.getByRole("button", {
+      name: /update password/i,
+    });
 
-    fireEvent.change(passwordInput, { target: { value: 'newpassword123' } });
-    fireEvent.change(confirmInput, { target: { value: 'newpassword123' } });
+    fireEvent.change(passwordInput, { target: { value: "newpassword123" } });
+    fireEvent.change(confirmInput, { target: { value: "newpassword123" } });
     fireEvent.click(submitButton);
 
     await waitFor(() => {
       expect(mockUpdateUser).toHaveBeenCalledWith({
-        password: 'newpassword123',
+        password: "newpassword123",
       });
     });
 
     // Should redirect to projects
-    expect(mockPush).toHaveBeenCalledWith('/projects');
+    expect(mockPush).toHaveBeenCalledWith("/projects");
     expect(mockRefresh).toHaveBeenCalled();
   });
 
-  it('should show loading state during password update', async () => {
-    mockUpdateUser.mockImplementation(() =>
-      new Promise(resolve => setTimeout(() => resolve({ error: null }), 100))
+  it("should show loading state during password update", async () => {
+    mockUpdateUser.mockImplementation(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(() => resolve({ error: null }), 100),
+        ),
     );
 
     render(<ResetPasswordForm />);
@@ -263,10 +286,12 @@ describe('ResetPasswordForm - Password Update', () => {
 
     const passwordInput = screen.getByLabelText(/new password/i);
     const confirmInput = screen.getByLabelText(/confirm password/i);
-    const submitButton = screen.getByRole('button', { name: /update password/i });
+    const submitButton = screen.getByRole("button", {
+      name: /update password/i,
+    });
 
-    fireEvent.change(passwordInput, { target: { value: 'newpassword123' } });
-    fireEvent.change(confirmInput, { target: { value: 'newpassword123' } });
+    fireEvent.change(passwordInput, { target: { value: "newpassword123" } });
+    fireEvent.change(confirmInput, { target: { value: "newpassword123" } });
     fireEvent.click(submitButton);
 
     // Should show loading text
@@ -278,10 +303,13 @@ describe('ResetPasswordForm - Password Update', () => {
     expect(submitButton).toBeDisabled();
   });
 
-  it('should disable form inputs during submission', async () => {
-    mockUpdateUser.mockImplementation(() =>
-      new Promise(resolve => setTimeout(() => resolve({ error: null }), 100))
-    );
+  it("should disable form inputs during submission", async () => {
+    // Use a promise we can control to avoid race conditions with next test
+    let resolveUpdate: (value: { error: null }) => void;
+    const updatePromise = new Promise<{ error: null }>((resolve) => {
+      resolveUpdate = resolve;
+    });
+    mockUpdateUser.mockImplementation(() => updatePromise);
 
     render(<ResetPasswordForm />);
 
@@ -289,12 +317,18 @@ describe('ResetPasswordForm - Password Update', () => {
       expect(screen.getByLabelText(/new password/i)).toBeInTheDocument();
     });
 
-    const passwordInput = screen.getByLabelText(/new password/i) as HTMLInputElement;
-    const confirmInput = screen.getByLabelText(/confirm password/i) as HTMLInputElement;
-    const submitButton = screen.getByRole('button', { name: /update password/i });
+    const passwordInput = screen.getByLabelText(
+      /new password/i,
+    ) as HTMLInputElement;
+    const confirmInput = screen.getByLabelText(
+      /confirm password/i,
+    ) as HTMLInputElement;
+    const submitButton = screen.getByRole("button", {
+      name: /update password/i,
+    });
 
-    fireEvent.change(passwordInput, { target: { value: 'newpassword123' } });
-    fireEvent.change(confirmInput, { target: { value: 'newpassword123' } });
+    fireEvent.change(passwordInput, { target: { value: "newpassword123" } });
+    fireEvent.change(confirmInput, { target: { value: "newpassword123" } });
     fireEvent.click(submitButton);
 
     await waitFor(() => {
@@ -303,18 +337,15 @@ describe('ResetPasswordForm - Password Update', () => {
       expect(submitButton).toBeDisabled();
     });
 
-    // Wait for the async operation to complete to avoid bleeding into next test
+    // Resolve the promise and wait for completion
+    resolveUpdate!({ error: null });
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith('/projects');
+      expect(mockPush).toHaveBeenCalledWith("/projects");
     });
   });
 
-  it('should handle API errors', async () => {
-    // Explicitly clear mocks to prevent bleeding from previous test
-    mockPush.mockClear();
-    mockRefresh.mockClear();
-
-    const errorMessage = 'Failed to update password';
+  it("should handle API errors", async () => {
+    const errorMessage = "Failed to update password";
     mockUpdateUser.mockResolvedValue({
       error: { message: errorMessage },
     });
@@ -327,10 +358,12 @@ describe('ResetPasswordForm - Password Update', () => {
 
     const passwordInput = screen.getByLabelText(/new password/i);
     const confirmInput = screen.getByLabelText(/confirm password/i);
-    const submitButton = screen.getByRole('button', { name: /update password/i });
+    const submitButton = screen.getByRole("button", {
+      name: /update password/i,
+    });
 
-    fireEvent.change(passwordInput, { target: { value: 'newpassword123' } });
-    fireEvent.change(confirmInput, { target: { value: 'newpassword123' } });
+    fireEvent.change(passwordInput, { target: { value: "newpassword123" } });
+    fireEvent.change(confirmInput, { target: { value: "newpassword123" } });
     fireEvent.click(submitButton);
 
     await waitFor(() => {
@@ -342,39 +375,43 @@ describe('ResetPasswordForm - Password Update', () => {
   });
 });
 
-describe('ResetPasswordForm - Password Security', () => {
+describe("ResetPasswordForm - Password Security", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetSession.mockResolvedValue({
       data: {
         session: {
-          access_token: 'valid-token',
-          user: { id: 'user-id' },
+          access_token: "valid-token",
+          user: { id: "user-id" },
         },
       },
     });
   });
 
-  it('should use password type for inputs', async () => {
+  it("should use password type for inputs", async () => {
     render(<ResetPasswordForm />);
 
     await waitFor(() => {
       expect(screen.getByLabelText(/new password/i)).toBeInTheDocument();
     });
 
-    const passwordInput = screen.getByLabelText(/new password/i) as HTMLInputElement;
-    const confirmInput = screen.getByLabelText(/confirm password/i) as HTMLInputElement;
+    const passwordInput = screen.getByLabelText(
+      /new password/i,
+    ) as HTMLInputElement;
+    const confirmInput = screen.getByLabelText(
+      /confirm password/i,
+    ) as HTMLInputElement;
 
-    expect(passwordInput).toHaveAttribute('type', 'password');
-    expect(confirmInput).toHaveAttribute('type', 'password');
+    expect(passwordInput).toHaveAttribute("type", "password");
+    expect(confirmInput).toHaveAttribute("type", "password");
   });
 
-  it('should document password requirements', () => {
+  it("should document password requirements", () => {
     // Password requirements (enforced by Supabase):
     const requirements = {
       minLength: 6,
       mustMatch: true,
-      type: 'password',
+      type: "password",
     };
 
     expect(requirements.minLength).toBeGreaterThanOrEqual(6);
@@ -382,18 +419,18 @@ describe('ResetPasswordForm - Password Security', () => {
   });
 });
 
-describe('ResetPasswordForm - Complete Flow', () => {
+describe("ResetPasswordForm - Complete Flow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('should complete full password reset flow', async () => {
+  it("should complete full password reset flow", async () => {
     // Step 1: Valid session
     mockGetSession.mockResolvedValue({
       data: {
         session: {
-          access_token: 'valid-token',
-          user: { id: 'user-id' },
+          access_token: "valid-token",
+          user: { id: "user-id" },
         },
       },
     });
@@ -411,25 +448,25 @@ describe('ResetPasswordForm - Complete Flow', () => {
     // Enter matching passwords
     const passwordInput = screen.getByLabelText(/new password/i);
     const confirmInput = screen.getByLabelText(/confirm password/i);
-    fireEvent.change(passwordInput, { target: { value: 'newpassword123' } });
-    fireEvent.change(confirmInput, { target: { value: 'newpassword123' } });
+    fireEvent.change(passwordInput, { target: { value: "newpassword123" } });
+    fireEvent.change(confirmInput, { target: { value: "newpassword123" } });
 
     // Submit form
-    fireEvent.click(screen.getByRole('button', { name: /update password/i }));
+    fireEvent.click(screen.getByRole("button", { name: /update password/i }));
 
     // Verify API call
     await waitFor(() => {
       expect(mockUpdateUser).toHaveBeenCalledWith({
-        password: 'newpassword123',
+        password: "newpassword123",
       });
     });
 
     // Verify redirect
-    expect(mockPush).toHaveBeenCalledWith('/projects');
+    expect(mockPush).toHaveBeenCalledWith("/projects");
     expect(mockRefresh).toHaveBeenCalled();
   });
 
-  it('should handle expired token scenario', async () => {
+  it("should handle expired token scenario", async () => {
     // User clicks old email link with expired token
     mockGetSession.mockResolvedValue({ data: { session: null } });
 
@@ -440,9 +477,11 @@ describe('ResetPasswordForm - Complete Flow', () => {
     });
 
     // User can request new link
-    const requestButton = screen.getByRole('button', { name: /request new reset link/i });
+    const requestButton = screen.getByRole("button", {
+      name: /request new reset link/i,
+    });
     fireEvent.click(requestButton);
 
-    expect(mockPush).toHaveBeenCalledWith('/forgot-password');
+    expect(mockPush).toHaveBeenCalledWith("/forgot-password");
   });
 });
