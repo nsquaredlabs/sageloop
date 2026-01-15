@@ -52,6 +52,7 @@ export async function middleware(request: NextRequest) {
   const isAuthApiPath = authApiPaths.some((path) =>
     request.nextUrl.pathname.startsWith(path),
   );
+  const isOnboardingPath = request.nextUrl.pathname.startsWith("/onboarding");
 
   if (!user && !isAuthPath && !isAuthApiPath) {
     return NextResponse.redirect(new URL("/login", request.url));
@@ -59,7 +60,36 @@ export async function middleware(request: NextRequest) {
 
   // Redirect authenticated users away from auth pages
   if (user && isAuthPath) {
+    // Check if user needs onboarding
+    const onboardingCompleted =
+      user.user_metadata?.onboarding_completed === true;
+    const onboardingSkipped = user.user_metadata?.onboarding_skipped === true;
+
+    if (!onboardingCompleted && !onboardingSkipped) {
+      return NextResponse.redirect(new URL("/onboarding", request.url));
+    }
     return NextResponse.redirect(new URL("/projects", request.url));
+  }
+
+  // Onboarding routing logic for authenticated users
+  if (user) {
+    const onboardingCompleted =
+      user.user_metadata?.onboarding_completed === true;
+    const onboardingSkipped = user.user_metadata?.onboarding_skipped === true;
+
+    // User hasn't completed onboarding and is trying to access /projects
+    if (
+      !onboardingCompleted &&
+      !onboardingSkipped &&
+      request.nextUrl.pathname === "/projects"
+    ) {
+      return NextResponse.redirect(new URL("/onboarding", request.url));
+    }
+
+    // User completed/skipped onboarding and is trying to access /onboarding
+    if ((onboardingCompleted || onboardingSkipped) && isOnboardingPath) {
+      return NextResponse.redirect(new URL("/projects", request.url));
+    }
   }
 
   return response;
