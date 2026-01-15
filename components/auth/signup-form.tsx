@@ -78,8 +78,8 @@ export function SignupForm() {
       setError(error.message);
       setLoading(null);
     } else {
-      // Since we're not requiring email verification, redirect immediately
-      router.push("/projects");
+      // Redirect new users to onboarding instead of projects
+      router.push("/onboarding");
       router.refresh();
     }
   };

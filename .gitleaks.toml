@@ -22,6 +22,7 @@ paths = [
   '''.env.example''',
   '''tests/setup.ts''',
   '''tests/security/.*\.test\.ts''',
+  '''tests/components/.*\.test\.tsx''',
   '''README.md''',
   '''docs/.*\.md''',
 ]

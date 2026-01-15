@@ -27,6 +27,12 @@ const ALL_TABS = [
     description: "OAuth providers",
     requiresPaid: false, // Always visible
   },
+  {
+    name: "Account",
+    href: "/settings/account",
+    description: "Preferences and settings",
+    requiresPaid: false, // Always visible
+  },
   // Phase 2: Team management
   // {
   //   name: 'Team',
