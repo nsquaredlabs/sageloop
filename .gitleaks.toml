@@ -25,6 +25,7 @@ paths = [
   '''tests/components/.*\.test\.tsx''',
   '''README.md''',
   '''docs/.*\.md''',
+  '''pnpm-lock.yaml''',
 ]
 
 # OpenAI API Keys
