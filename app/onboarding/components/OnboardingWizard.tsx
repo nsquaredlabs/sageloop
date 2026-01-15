@@ -7,8 +7,13 @@ import { StepIndicator } from "./StepIndicator";
 import { Step1ProjectSetup } from "./Step1ProjectSetup";
 import { Step2AddScenarios } from "./Step2AddScenarios";
 import { Step3Generate } from "./Step3Generate";
+import type { SubscriptionPlan } from "@/lib/ai/default-models";
 
-export function OnboardingWizard() {
+interface OnboardingWizardProps {
+  userPlan: SubscriptionPlan;
+}
+
+export function OnboardingWizard({ userPlan }: OnboardingWizardProps) {
   const router = useRouter();
   const {
     state,
@@ -98,6 +103,7 @@ export function OnboardingWizard() {
               onContinue={handleStep1Continue}
               onSkip={handleSkip}
               setProjectData={setProjectData}
+              userPlan={userPlan}
             />
           )}
 
