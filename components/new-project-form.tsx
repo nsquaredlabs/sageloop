@@ -16,12 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ArrowLeft, Loader2 } from "lucide-react";
-
-interface ModelInfo {
-  id: string;
-  name: string;
-  provider: "openai" | "anthropic";
-}
+import { useAvailableModels } from "@/lib/hooks/useAvailableModels";
 
 interface NewProjectFormProps {
   configured: {
@@ -35,10 +30,13 @@ export function NewProjectForm({}: NewProjectFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [models, setModels] = useState<ModelInfo[]>([]);
-  const [loadingModels, setLoadingModels] = useState(true);
 
-  // Users can always create projects (free tier available if no keys)
+  // Use the shared hook for fetching models based on subscription plan
+  const {
+    models,
+    defaultModel,
+    isLoading: loadingModels,
+  } = useAvailableModels();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -47,29 +45,12 @@ export function NewProjectForm({}: NewProjectFormProps) {
     systemPrompt: "",
   });
 
-  // Fetch available models from API
+  // Set default model when it becomes available
   useEffect(() => {
-    const fetchModels = async () => {
-      try {
-        const response = await fetch("/api/models");
-        const data = await response.json();
-
-        if (data.models) {
-          setModels(data.models);
-          // Set default model to first available
-          if (data.models.length > 0 && !formData.model) {
-            setFormData((prev) => ({ ...prev, model: data.models[0].id }));
-          }
-        }
-      } catch (err) {
-        console.error("Failed to fetch models:", err);
-      } finally {
-        setLoadingModels(false);
-      }
-    };
-
-    fetchModels();
-  }, []);
+    if (defaultModel && !formData.model) {
+      setFormData((prev) => ({ ...prev, model: defaultModel }));
+    }
+  }, [defaultModel, formData.model]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

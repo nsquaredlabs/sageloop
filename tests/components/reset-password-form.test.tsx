@@ -1,5 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+  cleanup,
+} from "@testing-library/react";
 import { ResetPasswordForm } from "@/components/auth/reset-password-form";
 
 /**
@@ -230,6 +237,13 @@ describe("ResetPasswordForm - Password Validation", () => {
 describe("ResetPasswordForm - Password Update", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset all mock implementations to ensure no leakage from previous tests
+    mockGetSession.mockReset();
+    mockUpdateUser.mockReset();
+    // Explicitly reset router mocks to prevent async operations from previous tests
+    // from polluting the current test's assertions
+    mockPush.mockReset();
+    mockRefresh.mockReset();
     mockGetSession.mockResolvedValue({
       data: {
         session: {
@@ -238,6 +252,11 @@ describe("ResetPasswordForm - Password Update", () => {
         },
       },
     });
+  });
+
+  afterEach(() => {
+    // Ensure complete cleanup after each test to prevent async leakage
+    cleanup();
   });
 
   it("should handle successful password update", async () => {
@@ -304,7 +323,7 @@ describe("ResetPasswordForm - Password Update", () => {
   });
 
   it("should disable form inputs during submission", async () => {
-    // Use a promise we can control to avoid race conditions with next test
+    // Use a promise we can control to test the loading state
     let resolveUpdate: (value: { error: null }) => void;
     const updatePromise = new Promise<{ error: null }>((resolve) => {
       resolveUpdate = resolve;
@@ -337,11 +356,16 @@ describe("ResetPasswordForm - Password Update", () => {
       expect(submitButton).toBeDisabled();
     });
 
-    // Resolve the promise and wait for completion
-    resolveUpdate!({ error: null });
-    await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/projects");
+    // Resolve the promise and wait for completion within act() to ensure
+    // all React updates are flushed before the test ends
+    await act(async () => {
+      resolveUpdate!({ error: null });
+      // Wait for the promise to resolve and React to process the update
+      await updatePromise;
     });
+
+    // Verify the redirect happened
+    expect(mockPush).toHaveBeenCalledWith("/projects");
   });
 
   it("should handle API errors", async () => {

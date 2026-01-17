@@ -16,10 +16,11 @@ import {
 import { cn } from "@/lib/utils";
 import { validateSystemPrompt } from "@/lib/security/prompt-validation";
 import { sanitize } from "@/lib/security/sanitize";
+import { getExampleProject } from "@/lib/onboarding/templates";
 import {
-  getExampleProject,
-  SUPPORTED_MODELS,
-} from "@/lib/onboarding/templates";
+  getModelsForPlan,
+  type SubscriptionPlan,
+} from "@/lib/ai/default-models";
 import { projectSetupSchema } from "@/lib/onboarding/validation";
 import { ExampleProjectCard } from "./ExampleProjectCard";
 import type {
@@ -34,6 +35,7 @@ interface Step1ProjectSetupProps {
   onContinue: (projectId: string, scenarios: string[]) => void;
   onSkip: () => void;
   setProjectData: UseOnboardingState["setProjectData"];
+  userPlan: SubscriptionPlan;
 }
 
 export function Step1ProjectSetup({
@@ -43,6 +45,7 @@ export function Step1ProjectSetup({
   onContinue,
   onSkip,
   setProjectData,
+  userPlan,
 }: Step1ProjectSetupProps) {
   const router = useRouter();
   const [useExample, setUseExample] = useState(projectData.isExample);
@@ -283,7 +286,7 @@ export function Step1ProjectSetup({
                 <SelectValue placeholder="Select a model" />
               </SelectTrigger>
               <SelectContent>
-                {SUPPORTED_MODELS.map((model) => (
+                {getModelsForPlan(userPlan).map((model) => (
                   <SelectItem key={model.id} value={model.id}>
                     {model.name}
                   </SelectItem>
