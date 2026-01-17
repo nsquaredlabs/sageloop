@@ -34,12 +34,14 @@ export function validateSystemPrompt(prompt: string): PromptValidationResult {
   const injectionPatterns = [
     // Role confusion attempts
     {
-      pattern: /ignore\s+(all\s+)?(previous|above|prior)\s+instructions?/gi,
+      pattern:
+        /(ignore|disregard)\s+(all\s+)?(previous|above|prior)\s+instructions?/gi,
       severity: "high" as const,
       description: "Instruction override attempt: ignore previous instructions",
     },
     {
-      pattern: /system\s+(mode|prompt)/gi,
+      pattern:
+        /((activate|enable|switch\s+to|update|change|set|enter|use)\s+(the\s+)?system\s+(mode|prompt)|system\s+(mode|prompt)\s+(activated|enabled|changed|updated|set))/gi,
       severity: "high" as const,
       description: "System mode/prompt manipulation",
     },
@@ -80,12 +82,14 @@ export function validateSystemPrompt(prompt: string): PromptValidationResult {
       description: "Developer mode bypass attempt",
     },
     {
-      pattern: /developer\s+mode/gi,
+      pattern:
+        /(activate|enable|switch\s+to|enter|use)\s+(the\s+)?developer\s+mode/gi,
       severity: "medium" as const,
       description: "Developer mode activation",
     },
     {
-      pattern: /jailbreak/gi,
+      pattern:
+        /(activate|enable|use|perform|execute|do|initiate)\s+(a\s+)?jailbreak/gi,
       severity: "high" as const,
       description: "Explicit jailbreak reference",
     },
