@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 interface SettingsTabsProps {
-  canUseBYOK: boolean;
+  isEnterprise: boolean;
 }
 
 const ALL_TABS = [
@@ -13,40 +13,42 @@ const ALL_TABS = [
     name: "Subscription",
     href: "/settings/subscription",
     description: "Plan, usage, and billing",
-    requiresPaid: false, // Always visible
+    requiresEnterprise: false, // Always visible
   },
   {
     name: "API Keys",
     href: "/settings/api-keys",
     description: "Bring your own keys",
-    requiresPaid: true, // Only for paid plans
+    requiresEnterprise: true, // Only for Enterprise plans (BYOK)
   },
   {
     name: "Connected Accounts",
     href: "/settings/connected-accounts",
     description: "OAuth providers",
-    requiresPaid: false, // Always visible
+    requiresEnterprise: false, // Always visible
   },
   {
     name: "Account",
     href: "/settings/account",
     description: "Preferences and settings",
-    requiresPaid: false, // Always visible
+    requiresEnterprise: false, // Always visible
   },
   // Phase 2: Team management
   // {
   //   name: 'Team',
   //   href: '/settings/team',
   //   description: 'Members and permissions',
-  //   requiresPaid: true,
+  //   requiresEnterprise: true,
   // },
 ];
 
-export function SettingsTabs({ canUseBYOK }: SettingsTabsProps) {
+export function SettingsTabs({ isEnterprise }: SettingsTabsProps) {
   const pathname = usePathname();
 
-  // Filter tabs based on subscription plan
-  const tabs = ALL_TABS.filter((tab) => !tab.requiresPaid || canUseBYOK);
+  // Filter tabs based on subscription plan - BYOK only for Enterprise
+  const tabs = ALL_TABS.filter(
+    (tab) => !tab.requiresEnterprise || isEnterprise,
+  );
 
   return (
     <div className="border-b">

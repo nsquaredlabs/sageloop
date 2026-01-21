@@ -1,28 +1,36 @@
-import { redirect } from 'next/navigation';
-import { createServerClient } from '@/lib/supabase';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ApiKeyForm } from '@/components/api-key-form';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Info } from 'lucide-react';
+import { redirect } from "next/navigation";
+import { createServerClient } from "@/lib/supabase";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { ApiKeyForm } from "@/components/api-key-form";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Info } from "lucide-react";
 
 export const metadata = {
-  title: 'API Keys | Settings | Sageloop',
-  description: 'Manage your API keys',
+  title: "API Keys | Settings | Sageloop",
+  description: "Manage your API keys",
 };
 
 export default async function ApiKeysPage() {
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect('/auth/login');
+    redirect("/auth/login");
   }
 
   // Get user's workbench
   const { data: userWorkbenches } = await supabase
-    .from('user_workbenches')
-    .select('workbench_id')
-    .eq('user_id', user.id)
+    .from("user_workbenches")
+    .select("workbench_id")
+    .eq("user_id", user.id)
     .limit(1)
     .single();
 
@@ -36,24 +44,25 @@ export default async function ApiKeysPage() {
 
   const workbenchId = userWorkbenches.workbench_id as string;
 
-  // Check subscription plan - BYOK only available for paid plans
+  // Check subscription plan - BYOK only available for Enterprise plans
   const { data: subscriptionData } = await supabase.rpc(
-    'get_workbench_subscription',
-    { workbench_uuid: workbenchId }
+    "get_workbench_subscription",
+    { workbench_uuid: workbenchId },
   );
 
   const subscription = subscriptionData?.[0];
 
-  // Redirect free tier users to subscription page
-  if (subscription?.plan_id === 'free') {
-    redirect('/settings/subscription?upgrade_required=true');
+  // Redirect non-Enterprise users to subscription page
+  if (subscription?.plan_id !== "enterprise") {
+    redirect("/settings/subscription?enterprise_required=true");
   }
 
   // Check which API keys are configured
-  const { data: configured } = await supabase
-    .rpc('check_workbench_api_keys', { workbench_uuid: workbenchId }) as {
-      data: { openai?: boolean; anthropic?: boolean } | null;
-    };
+  const { data: configured } = (await supabase.rpc("check_workbench_api_keys", {
+    workbench_uuid: workbenchId,
+  })) as {
+    data: { openai?: boolean; anthropic?: boolean } | null;
+  };
 
   return (
     <div className="space-y-6">
@@ -61,8 +70,9 @@ export default async function ApiKeysPage() {
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          <strong>Phase 1 - Free Tier:</strong> All users currently use system API keys with quota limits.
-          BYOK (Bring Your Own Keys) will be available with paid plans in Phase 2.
+          <strong>Phase 1 - Free Tier:</strong> All users currently use system
+          API keys with quota limits. BYOK (Bring Your Own Keys) will be
+          available with paid plans in Phase 2.
         </AlertDescription>
       </Alert>
 
@@ -71,7 +81,8 @@ export default async function ApiKeysPage() {
         <CardHeader>
           <CardTitle>API Keys</CardTitle>
           <CardDescription>
-            Configure your own API keys for AI generation and pattern extraction. Your keys are encrypted and stored securely.
+            Configure your own API keys for AI generation and pattern
+            extraction. Your keys are encrypted and stored securely.
           </CardDescription>
         </CardHeader>
         <CardContent>
