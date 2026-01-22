@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Loader2, LucideIcon } from 'lucide-react';
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Loader2, LucideIcon } from "lucide-react";
+import { useApiPost } from "@/lib/hooks";
 
 interface AsyncActionButtonProps {
   label: string;
@@ -14,8 +14,8 @@ interface AsyncActionButtonProps {
   metadata?: string;
   onSuccess?: () => void;
   requestBody?: Record<string, unknown>;
-  variant?: 'default' | 'outline' | 'destructive';
-  size?: 'default' | 'sm' | 'lg';
+  variant?: "default" | "outline" | "destructive";
+  size?: "default" | "sm" | "lg";
   className?: string;
   refreshBeforeNavigate?: boolean;
 }
@@ -29,36 +29,18 @@ export function AsyncActionButton({
   metadata,
   onSuccess,
   requestBody,
-  variant = 'default',
-  size = 'lg',
-  className = 'w-full',
+  variant = "default",
+  size = "lg",
+  className = "w-full",
   refreshBeforeNavigate = false,
 }: AsyncActionButtonProps) {
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { post, isLoading, error } = useApiPost();
 
   const handleAction = async () => {
-    setIsLoading(true);
-    setError(null);
+    const result = await post(apiEndpoint, requestBody);
 
-    try {
-      const response = await fetch(apiEndpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        ...(requestBody && { body: JSON.stringify(requestBody) }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Request failed');
-      }
-
-      await response.json();
-
+    if (result !== null) {
       if (refreshBeforeNavigate) {
         router.refresh();
       }
@@ -70,9 +52,6 @@ export function AsyncActionButton({
       if (onSuccess) {
         onSuccess();
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Action failed');
-      setIsLoading(false);
     }
   };
 

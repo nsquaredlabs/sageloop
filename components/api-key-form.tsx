@@ -146,6 +146,20 @@ export function ApiKeyForm({
         },
       );
 
+      if (!response.ok) {
+        let errorMessage = "Test failed";
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          const text = await response.text().catch(() => "");
+          if (text) {
+            errorMessage = text.slice(0, 200);
+          }
+        }
+        throw new Error(errorMessage);
+      }
+
       const result = await response.json();
       setTestResults({ ...testResults, [provider]: result });
     } catch (err) {

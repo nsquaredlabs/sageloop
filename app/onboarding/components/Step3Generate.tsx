@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useApiPost } from "@/lib/hooks";
 import type { UseOnboardingState } from "@/lib/hooks/useOnboardingState";
 
 interface Step3GenerateProps {
@@ -28,6 +29,12 @@ interface GenerationError {
   details?: string;
 }
 
+interface GenerationResult {
+  generated?: number;
+  total?: number;
+  errors?: Array<{ scenario_id: number; error: string }>;
+}
+
 export function Step3Generate({
   projectId,
   scenarioCount,
@@ -41,6 +48,7 @@ export function Step3Generate({
   generationProgress,
 }: Step3GenerateProps) {
   const router = useRouter();
+  const { post, error: apiError } = useApiPost<GenerationResult>();
   const [generationState, setGenerationState] = useState<GenerationState>(
     isGenerating ? "generating" : "ready",
   );
@@ -102,52 +110,37 @@ export function Step3Generate({
     setGenerating(true);
     setGenerationProgress({ completed: 0, total: scenarioCount });
 
-    try {
-      const response = await fetch(`/api/projects/${projectId}/generate`, {
-        method: "POST",
-      });
+    const result = await post(`/api/projects/${projectId}/generate`);
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        setError({
-          message: errorData.error || "Generation failed",
-          details: errorData.details?.join(", "),
-        });
-        setGenerationState("error");
-        setGenerating(false);
-        return;
-      }
-
-      const result = await response.json();
-
-      // Update progress with actual results
-      setGenerationProgress({
-        completed: result.generated || 0,
-        total: result.total || scenarioCount,
-      });
-
-      if (result.errors && result.errors.length > 0) {
-        // Partial failure
-        setError({
-          message: `Generated ${result.generated}/${result.total} outputs. ${result.errors.length} failed.`,
-          details: "You can retry failed scenarios from the project page.",
-        });
-      }
-
-      setGenerationState("complete");
-      setGenerating(false);
-
-      // Mark onboarding as complete
-      await fetch("/api/onboarding/complete", { method: "POST" });
-    } catch (err) {
-      console.error("Generation error:", err);
+    if (!result) {
       setError({
-        message: "An unexpected error occurred during generation.",
+        message: apiError || "Generation failed",
         details: "Please try again or skip for now.",
       });
       setGenerationState("error");
       setGenerating(false);
+      return;
     }
+
+    // Update progress with actual results
+    setGenerationProgress({
+      completed: result.generated || 0,
+      total: result.total || scenarioCount,
+    });
+
+    if (result.errors && result.errors.length > 0) {
+      // Partial failure
+      setError({
+        message: `Generated ${result.generated}/${result.total} outputs. ${result.errors.length} failed.`,
+        details: "You can retry failed scenarios from the project page.",
+      });
+    }
+
+    setGenerationState("complete");
+    setGenerating(false);
+
+    // Mark onboarding as complete
+    await post("/api/onboarding/complete");
   };
 
   // Complete state
