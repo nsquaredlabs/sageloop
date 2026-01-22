@@ -87,22 +87,45 @@ describe("projectSetupSchema", () => {
 });
 
 describe("parseBulkScenarios", () => {
-  it("splits scenarios by newline", () => {
-    const input = "Scenario 1\nScenario 2\nScenario 3";
+  it("splits scenarios by double newlines", () => {
+    const input = "Scenario 1\n\nScenario 2\n\nScenario 3";
     const result = parseBulkScenarios(input);
 
     expect(result).toEqual(["Scenario 1", "Scenario 2", "Scenario 3"]);
+  });
+
+  it("preserves single newlines within scenarios (Shift+Enter behavior)", () => {
+    const input = "Scenario 1\nwith multiple lines\n\nScenario 2\n\nScenario 3";
+    const result = parseBulkScenarios(input);
+
+    expect(result).toEqual([
+      "Scenario 1\nwith multiple lines",
+      "Scenario 2",
+      "Scenario 3",
+    ]);
+  });
+
+  it("handles multi-line scenarios with bullet points", () => {
+    const input =
+      "Customer complaint:\n- Order delayed\n- No tracking info\n- Need refund\n\nSimple question about returns\n\nMulti-part request:\n1. Check status\n2. Update address";
+    const result = parseBulkScenarios(input);
+
+    expect(result).toEqual([
+      "Customer complaint:\n- Order delayed\n- No tracking info\n- Need refund",
+      "Simple question about returns",
+      "Multi-part request:\n1. Check status\n2. Update address",
+    ]);
   });
 
   it("trims whitespace from scenarios", () => {
-    const input = "  Scenario 1  \n  Scenario 2  \n  Scenario 3  ";
+    const input = "  Scenario 1  \n\n  Scenario 2  \n\n  Scenario 3  ";
     const result = parseBulkScenarios(input);
 
     expect(result).toEqual(["Scenario 1", "Scenario 2", "Scenario 3"]);
   });
 
-  it("filters out empty lines", () => {
-    const input = "Scenario 1\n\n\nScenario 2\n\nScenario 3";
+  it("handles multiple consecutive blank lines as single separator", () => {
+    const input = "Scenario 1\n\n\n\nScenario 2\n\n\nScenario 3";
     const result = parseBulkScenarios(input);
 
     expect(result).toEqual(["Scenario 1", "Scenario 2", "Scenario 3"]);
@@ -110,7 +133,7 @@ describe("parseBulkScenarios", () => {
 
   it("filters out scenarios that are too long", () => {
     const longScenario = "a".repeat(501); // Over 500 chars
-    const input = `Scenario 1\n${longScenario}\nScenario 3`;
+    const input = `Scenario 1\n\n${longScenario}\n\nScenario 3`;
     const result = parseBulkScenarios(input);
 
     expect(result).toEqual(["Scenario 1", "Scenario 3"]);
@@ -125,16 +148,39 @@ describe("parseBulkScenarios", () => {
     const result = parseBulkScenarios("   \n\n   \n   ");
     expect(result).toEqual([]);
   });
+
+  it("treats single scenario with no double newlines as one scenario", () => {
+    const input =
+      "This is a single scenario\nwith multiple lines\nno blank lines";
+    const result = parseBulkScenarios(input);
+
+    expect(result).toEqual([
+      "This is a single scenario\nwith multiple lines\nno blank lines",
+    ]);
+  });
 });
 
 describe("validateBulkScenarios", () => {
-  it("validates valid scenarios", () => {
-    const input = "Scenario 1\nScenario 2\nScenario 3";
+  it("validates valid scenarios separated by double newlines", () => {
+    const input = "Scenario 1\n\nScenario 2\n\nScenario 3";
     const result = validateBulkScenarios(input);
 
     expect(result.valid).toBe(true);
     expect(result.scenarios).toHaveLength(3);
     expect(result.errors).toHaveLength(0);
+  });
+
+  it("validates multi-line scenarios", () => {
+    const input =
+      "Scenario 1\nwith extra line\n\nScenario 2\n\nScenario 3\nwith bullets:\n- item 1\n- item 2";
+    const result = validateBulkScenarios(input);
+
+    expect(result.valid).toBe(true);
+    expect(result.scenarios).toHaveLength(3);
+    expect(result.scenarios[0]).toBe("Scenario 1\nwith extra line");
+    expect(result.scenarios[2]).toBe(
+      "Scenario 3\nwith bullets:\n- item 1\n- item 2",
+    );
   });
 
   it("returns error for empty input", () => {
@@ -147,7 +193,7 @@ describe("validateBulkScenarios", () => {
 
   it("warns about truncated scenarios", () => {
     const longScenario = "a".repeat(501);
-    const input = `Scenario 1\n${longScenario}\nScenario 3`;
+    const input = `Scenario 1\n\n${longScenario}\n\nScenario 3`;
     const result = validateBulkScenarios(input);
 
     expect(result.valid).toBe(false);
@@ -158,7 +204,7 @@ describe("validateBulkScenarios", () => {
   });
 
   it("returns error for more than 1000 scenarios", () => {
-    const scenarios = Array(1001).fill("Scenario").join("\n");
+    const scenarios = Array(1001).fill("Scenario").join("\n\n");
     const result = validateBulkScenarios(scenarios);
 
     expect(result.valid).toBe(false);
