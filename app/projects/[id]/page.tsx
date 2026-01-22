@@ -4,8 +4,9 @@ import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import { AddScenarioDialog } from "@/components/add-scenario-dialog";
+import { DeleteScenarioButton } from "@/components/delete-scenario-button";
 import { UploadScenariosDialog } from "@/components/upload-scenarios-dialog";
 import { GenerateOutputsButton } from "@/components/generate-outputs-button";
 import { EditProjectDialog } from "@/components/edit-project-dialog";
@@ -145,9 +146,10 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
                         </p>
                       </div>
                       <div className="flex gap-2 ml-4">
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                        </Button>
+                        <DeleteScenarioButton
+                          projectId={String(id)}
+                          scenarioId={String(scenario.id)}
+                        />
                       </div>
                     </div>
                   </CardContent>

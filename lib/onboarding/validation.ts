@@ -50,13 +50,21 @@ export type BulkScenariosData = z.infer<typeof bulkScenariosSchema>;
 
 /**
  * Parse bulk scenario text into array of scenarios
- * Splits by newline, trims whitespace, filters empty lines
+ *
+ * Delimiter behavior:
+ * - Double newlines (\n\n) separate scenarios
+ * - Single newlines are preserved within scenarios (for multi-line input via Shift+Enter)
+ * - Scenarios are trimmed of leading/trailing whitespace
+ * - Empty scenarios are filtered out
+ * - Scenarios over 500 characters are filtered out
  */
 export function parseBulkScenarios(text: string): string[] {
+  // Split by double newlines to separate scenarios
+  // This allows single newlines (Shift+Enter) within a scenario
   return text
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0 && line.length <= 500);
+    .split(/\n\n+/)
+    .map((scenario) => scenario.trim())
+    .filter((scenario) => scenario.length > 0 && scenario.length <= 500);
 }
 
 /**
@@ -79,12 +87,12 @@ export function validateBulkScenarios(text: string): {
     errors.push("Maximum 1000 scenarios allowed");
   }
 
-  // Check for scenarios that were truncated
-  const lines = text
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-  const truncated = lines.filter((line) => line.length > 500);
+  // Check for scenarios that were truncated (split by double newlines, same as parseBulkScenarios)
+  const allScenarios = text
+    .split(/\n\n+/)
+    .map((scenario) => scenario.trim())
+    .filter((scenario) => scenario.length > 0);
+  const truncated = allScenarios.filter((scenario) => scenario.length > 500);
   if (truncated.length > 0) {
     errors.push(
       `${truncated.length} scenario(s) exceed 500 characters and will be ignored`,

@@ -1,17 +1,56 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
 import { sanitize } from "@/lib/security/sanitize";
-import {
-  parseBulkScenarios,
-  validateBulkScenarios,
-} from "@/lib/onboarding/validation";
 import type { UseOnboardingState } from "@/lib/hooks/useOnboardingState";
+import { FileText, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+
+function parseCSV(text: string): string[] {
+  const scenarios: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  let i = 0;
+
+  while (i < text.length) {
+    const char = text[i];
+
+    if (char === '"') {
+      if (inQuotes && text[i + 1] === '"') {
+        current += '"';
+        i += 2;
+        continue;
+      }
+      inQuotes = !inQuotes;
+      i++;
+      continue;
+    }
+
+    if (!inQuotes && (char === "\n" || char === "\r")) {
+      if (current.trim()) {
+        scenarios.push(current.trim());
+      }
+      current = "";
+      if (char === "\r" && text[i + 1] === "\n") {
+        i++;
+      }
+      i++;
+      continue;
+    }
+
+    current += char;
+    i++;
+  }
+
+  if (current.trim()) {
+    scenarios.push(current.trim());
+  }
+
+  return scenarios;
+}
 
 interface Step2AddScenariosProps {
   projectId: string;
@@ -34,15 +73,52 @@ export function Step2AddScenarios({
   onBack,
   setScenarios,
 }: Step2AddScenariosProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<InputMode>("bulk");
-  const [bulkText, setBulkText] = useState("");
+  const [csvScenarios, setCsvScenarios] = useState<string[]>([]);
+  const [fileName, setFileName] = useState<string | null>(null);
   const [individualScenarios, setIndividualScenarios] = useState<string[]>([
     "",
   ]);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const parsedBulkScenarios = parseBulkScenarios(bulkText);
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setFileName(file.name);
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const parsed = parseCSV(text);
+      if (parsed.length === 0) {
+        setError("No scenarios found in file. Check the CSV format below.");
+        setCsvScenarios([]);
+      } else {
+        setCsvScenarios(parsed);
+        setError(null);
+      }
+    };
+
+    reader.onerror = () => {
+      setError("Failed to read file");
+      setFileName(null);
+      setCsvScenarios([]);
+    };
+
+    reader.readAsText(file);
+  };
+
+  const handleClearFile = () => {
+    setFileName(null);
+    setCsvScenarios([]);
+    setError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   const handleContinue = async () => {
     setError(null);
@@ -50,7 +126,7 @@ export function Step2AddScenarios({
     // Get scenarios based on mode
     const newScenarios =
       mode === "bulk"
-        ? parsedBulkScenarios
+        ? csvScenarios
         : individualScenarios.filter((s) => s.trim().length > 0);
 
     // For example project, we already have scenarios, so allow proceeding without new ones
@@ -59,13 +135,10 @@ export function Step2AddScenarios({
       return;
     }
 
-    // Validate
-    if (mode === "bulk" && newScenarios.length > 0) {
-      const validation = validateBulkScenarios(bulkText);
-      if (!validation.valid) {
-        setError(validation.errors.join(". "));
-        return;
-      }
+    // Validate scenario count
+    if (newScenarios.length > 1000) {
+      setError("Maximum 1000 scenarios allowed");
+      return;
     }
 
     // If we have new scenarios to add, submit them
@@ -125,7 +198,7 @@ export function Step2AddScenarios({
   const totalScenarios =
     scenarios.length +
     (mode === "bulk"
-      ? parsedBulkScenarios.length
+      ? csvScenarios.length
       : individualScenarios.filter((s) => s.trim().length > 0).length);
 
   return (
@@ -183,20 +256,68 @@ export function Step2AddScenarios({
 
       {/* Bulk Import */}
       {mode === "bulk" && (
-        <div className="space-y-2">
-          <Label htmlFor="bulkScenarios">Paste scenarios (one per line):</Label>
-          <Textarea
-            id="bulkScenarios"
-            value={bulkText}
-            onChange={(e) => setBulkText(e.target.value)}
-            placeholder="Where is my order?&#10;How do I return an item?&#10;Can I change my shipping address?"
-            rows={12}
-            className="font-mono text-sm"
-          />
-          <p className="text-sm text-muted-foreground">
-            {parsedBulkScenarios.length} scenario
-            {parsedBulkScenarios.length !== 1 ? "s" : ""} detected | Max 1000
-          </p>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="file-upload">Upload CSV File</Label>
+            <div className="flex gap-2">
+              <input
+                ref={fileInputRef}
+                id="file-upload"
+                type="file"
+                accept=".csv"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex-1"
+              >
+                <FileText className="mr-2 h-4 w-4" />
+                Choose CSV File
+              </Button>
+              {fileName && (
+                <div className="flex-1 flex items-center gap-2 px-3 py-2 border rounded-md bg-muted">
+                  <span className="text-sm truncate flex-1">{fileName}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={handleClearFile}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+            {csvScenarios.length > 0 && (
+              <Badge variant="secondary" className="text-xs">
+                {csvScenarios.length} scenario
+                {csvScenarios.length !== 1 ? "s" : ""} found
+              </Badge>
+            )}
+          </div>
+
+          {/* CSV Format Instructions */}
+          <div className="rounded-md border bg-muted/50 p-4 space-y-3">
+            <h4 className="text-sm font-medium">CSV Format</h4>
+            <p className="text-xs text-muted-foreground">
+              One scenario per row. Use quotes for scenarios with commas or
+              multiple lines.
+            </p>
+            <div className="font-mono text-xs bg-background rounded p-3 space-y-1">
+              <p className="text-muted-foreground"># Simple scenarios:</p>
+              <p>How do I reset my password?</p>
+              <p>Where is my order?</p>
+              <p className="text-muted-foreground mt-2"># With comma:</p>
+              <p>&quot;Hi, I need help&quot;</p>
+              <p className="text-muted-foreground mt-2"># Multi-line:</p>
+              <p>&quot;My order is late.</p>
+              <p>It&apos;s been 2 weeks.&quot;</p>
+            </div>
+          </div>
         </div>
       )}
 
