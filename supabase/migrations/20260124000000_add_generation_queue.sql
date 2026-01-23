@@ -189,6 +189,7 @@ $$;
 -- Supabase RPC only exposes public schema functions
 
 -- Read messages from a queue
+-- pgmq.read returns: msg_id, read_ct, enqueued_at, vt, message, headers (6 columns)
 create or replace function pgmq_read(
   p_queue_name text,
   p_vt int,
@@ -199,7 +200,8 @@ returns table(
   read_ct int,
   enqueued_at timestamp with time zone,
   vt timestamp with time zone,
-  message jsonb
+  message jsonb,
+  headers jsonb
 )
 language plpgsql
 security definer
