@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useApiPost } from "@/lib/hooks";
+import { useApiPost, useJobPolling } from "@/lib/hooks";
 import type { UseOnboardingState } from "@/lib/hooks/useOnboardingState";
+import type { EnqueueGenerationResponse } from "@/types/api";
 
 interface Step3GenerateProps {
   projectId: string;
@@ -29,12 +30,6 @@ interface GenerationError {
   details?: string;
 }
 
-interface GenerationResult {
-  generated?: number;
-  total?: number;
-  errors?: Array<{ scenario_id: number; error: string }>;
-}
-
 export function Step3Generate({
   projectId,
   scenarioCount,
@@ -48,7 +43,7 @@ export function Step3Generate({
   generationProgress,
 }: Step3GenerateProps) {
   const router = useRouter();
-  const { post, error: apiError } = useApiPost<GenerationResult>();
+  const { post, error: apiError } = useApiPost<EnqueueGenerationResponse>();
   const [generationState, setGenerationState] = useState<GenerationState>(
     isGenerating ? "generating" : "ready",
   );
@@ -61,48 +56,69 @@ export function Step3Generate({
       ? `~${estimatedSeconds} seconds`
       : `~${Math.ceil(estimatedSeconds / 60)} minute${Math.ceil(estimatedSeconds / 60) > 1 ? "s" : ""}`;
 
-  // Poll for output count during generation
-  const pollProgress = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/projects/${projectId}`);
-      if (!response.ok) return;
+  // Job polling hook for async generation
+  const {
+    startPolling,
+    job,
+    isPolling,
+    error: pollingError,
+    progress,
+  } = useJobPolling({
+    onComplete: async (completedJob, _outputs) => {
+      // Update progress with final results
+      setGenerationProgress({
+        completed: completedJob.completed_scenarios,
+        total: completedJob.total_scenarios,
+      });
 
-      const { data: project } = await response.json();
-
-      // Get output count from scenarios
-      const scenariosResponse = await fetch(
-        `/api/projects/${projectId}/scenarios`,
-      );
-      if (!scenariosResponse.ok) return;
-
-      const { data: scenarios } = await scenariosResponse.json();
-      const outputCount =
-        scenarios?.filter(
-          (s: { outputs?: unknown[] }) => s.outputs && s.outputs.length > 0,
-        ).length || 0;
-
-      setGenerationProgress({ completed: outputCount, total: scenarioCount });
-
-      // Check if complete
-      if (outputCount >= scenarioCount) {
-        setGenerationState("complete");
-        setGenerating(false);
-
-        // Mark onboarding as complete
-        await fetch("/api/onboarding/complete", { method: "POST" });
+      if (completedJob.failed_scenarios > 0) {
+        // Partial failure
+        setError({
+          message: `Generated ${completedJob.completed_scenarios}/${completedJob.total_scenarios} outputs. ${completedJob.failed_scenarios} failed.`,
+          details: "You can retry failed scenarios from the project page.",
+        });
       }
-    } catch (err) {
-      console.error("Error polling progress:", err);
-    }
-  }, [projectId, scenarioCount, setGenerating, setGenerationProgress]);
 
-  // Start polling when generating
+      setGenerationState("complete");
+      setGenerating(false);
+
+      // Mark onboarding as complete
+      await post("/api/onboarding/complete");
+    },
+    onError: (failedJob, errorMessage) => {
+      setError({
+        message: errorMessage,
+        details: "Please try again or skip for now.",
+      });
+      setGenerationState("error");
+      setGenerating(false);
+    },
+    onProgress: (progressJob) => {
+      setGenerationProgress({
+        completed: progressJob.completed_scenarios,
+        total: progressJob.total_scenarios,
+      });
+    },
+    pollInterval: 2000,
+  });
+
+  // Sync polling progress to local state
   useEffect(() => {
-    if (generationState !== "generating") return;
+    if (job) {
+      setGenerationProgress({
+        completed: job.completed_scenarios,
+        total: job.total_scenarios,
+      });
+    }
+  }, [job, setGenerationProgress]);
 
-    const interval = setInterval(pollProgress, 2000);
-    return () => clearInterval(interval);
-  }, [generationState, pollProgress]);
+  // Handle polling errors
+  useEffect(() => {
+    if (pollingError && generationState === "generating") {
+      // Only show error if it persists
+      console.warn("Polling error (will retry):", pollingError);
+    }
+  }, [pollingError, generationState]);
 
   const handleGenerate = async () => {
     setError(null);
@@ -110,11 +126,12 @@ export function Step3Generate({
     setGenerating(true);
     setGenerationProgress({ completed: 0, total: scenarioCount });
 
+    // Enqueue the generation job
     const result = await post(`/api/projects/${projectId}/generate`);
 
-    if (!result) {
+    if (!result || !result.job_id) {
       setError({
-        message: apiError || "Generation failed",
+        message: apiError || "Failed to start generation",
         details: "Please try again or skip for now.",
       });
       setGenerationState("error");
@@ -122,25 +139,8 @@ export function Step3Generate({
       return;
     }
 
-    // Update progress with actual results
-    setGenerationProgress({
-      completed: result.generated || 0,
-      total: result.total || scenarioCount,
-    });
-
-    if (result.errors && result.errors.length > 0) {
-      // Partial failure
-      setError({
-        message: `Generated ${result.generated}/${result.total} outputs. ${result.errors.length} failed.`,
-        details: "You can retry failed scenarios from the project page.",
-      });
-    }
-
-    setGenerationState("complete");
-    setGenerating(false);
-
-    // Mark onboarding as complete
-    await post("/api/onboarding/complete");
+    // Start polling for job progress
+    startPolling(result.job_id);
   };
 
   // Complete state
@@ -245,16 +245,23 @@ export function Step3Generate({
                 d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
               />
             </svg>
-            <span className="font-medium">Generating outputs...</span>
+            <span className="font-medium">
+              {job?.status === "processing"
+                ? "Generating outputs..."
+                : "Starting generation..."}
+            </span>
           </div>
           <Progress
             value={
+              progress ||
               (generationProgress.completed / generationProgress.total) * 100
             }
             className="h-3"
           />
           <p className="text-center text-sm text-muted-foreground">
-            {generationProgress.completed}/{generationProgress.total} complete
+            {job
+              ? `${job.completed_scenarios}/${job.total_scenarios} complete`
+              : `${generationProgress.completed}/${generationProgress.total} complete`}
           </p>
         </div>
       ) : (

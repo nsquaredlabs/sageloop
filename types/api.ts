@@ -423,3 +423,60 @@ export interface GetExtractionsResponse {
     created_at: string;
   }>;
 }
+
+// ============================================================================
+// Async Generation Jobs
+// ============================================================================
+
+/**
+ * Response from POST /api/projects/[id]/generate
+ * Returns immediately with a job ID instead of waiting for generation
+ */
+export interface EnqueueGenerationResponse {
+  success: boolean;
+  job_id: string;
+  status: "pending";
+  total_scenarios: number;
+}
+
+/**
+ * Generation job status and progress
+ */
+export interface GenerationJob {
+  id: string;
+  project_id: number;
+  workbench_id: string;
+  status: "pending" | "processing" | "completed" | "failed" | "partial";
+  total_scenarios: number;
+  completed_scenarios: number;
+  failed_scenarios: number;
+  output_ids: number[];
+  errors: Array<{ scenario_id: number; error: string }>;
+  created_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+/**
+ * Response from GET /api/jobs/[jobId]
+ */
+export interface GetJobStatusResponse {
+  success: boolean;
+  job: GenerationJob;
+  /** Outputs are included when job is completed or partial */
+  outputs?: Array<{
+    id: number;
+    scenario_id: number | null;
+    output_text: string;
+    generated_at: string | null;
+    model_snapshot: {
+      model: string;
+      system_prompt?: string;
+      completion_tokens?: number;
+      prompt_tokens?: number;
+      total_tokens?: number;
+      input_tokens?: number;
+      output_tokens?: number;
+    };
+  }>;
+}
