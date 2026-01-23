@@ -58,7 +58,11 @@ export async function GET(_request: Request, { params }: RouteParams) {
     // If job is processing but seems stalled (no update in 30s), re-trigger the Edge Function
     // This handles the case where the function timed out but the queue message is still invisible
     if (typedJob.status === "processing" || typedJob.status === "pending") {
-      const updatedAt = new Date(typedJob.updated_at).getTime();
+      const updatedAt = typedJob.updated_at
+        ? new Date(typedJob.updated_at).getTime()
+        : typedJob.created_at
+          ? new Date(typedJob.created_at).getTime()
+          : Date.now();
       const now = Date.now();
       const stalledThreshold = 30 * 1000; // 30 seconds
 
