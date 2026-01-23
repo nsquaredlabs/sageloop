@@ -407,9 +407,9 @@ Deno.serve(async (req) => {
     const { data: messages, error: queueError } = await supabase.rpc(
       "pgmq_read",
       {
-        queue_name: "generation_jobs",
-        vt: 300, // 5 minute visibility timeout
-        qty: 1, // Process one job at a time
+        p_queue_name: "generation_jobs",
+        p_vt: 300, // 5 minute visibility timeout
+        p_qty: 1, // Process one job at a time
       },
     );
 
@@ -452,8 +452,8 @@ Deno.serve(async (req) => {
           console.error(`Job ${jobMessage.job_id} not found:`, jobError);
           // Delete the orphaned message
           await supabase.rpc("pgmq_delete", {
-            queue_name: "generation_jobs",
-            msg_id: msg.msg_id,
+            p_queue_name: "generation_jobs",
+            p_msg_id: msg.msg_id,
           });
           results.push({ jobId: jobMessage.job_id, status: "not_found" });
           continue;
@@ -465,8 +465,8 @@ Deno.serve(async (req) => {
             `Job ${jobMessage.job_id} already processed, deleting message`,
           );
           await supabase.rpc("pgmq_delete", {
-            queue_name: "generation_jobs",
-            msg_id: msg.msg_id,
+            p_queue_name: "generation_jobs",
+            p_msg_id: msg.msg_id,
           });
           results.push({
             jobId: jobMessage.job_id,

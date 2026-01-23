@@ -21,3 +21,8 @@ enabled = true
 site_url = "http://localhost:3000"
 # Production: Update in Supabase dashboard to your Vercel URL
 # https://app.supabase.com → Authentication → URL Configuration
+
+[functions.process-generation]
+# Disable JWT verification - this is an internal background job processor
+# It's triggered server-side with service role key, not by end users
+verify_jwt = false
