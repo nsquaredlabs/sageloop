@@ -55,29 +55,13 @@ export async function GET(_request: Request, { params }: RouteParams) {
     // Job is already typed from the assertion above
     const typedJob = job;
 
-    // Trigger Edge Function if job needs processing
-    // - For 'pending' jobs: always trigger (kick off processing)
-    // - For 'processing' jobs: only trigger if stalled (no update in 30s)
-    if (typedJob.status === "pending") {
-      // Always trigger for pending jobs - this is likely the first poll after enqueueing
+    // Trigger Edge Function if job isn't complete
+    // Each poll triggers the function to process ONE scenario from the queue
+    // This continues until all scenarios are processed
+    if (typedJob.status === "pending" || typedJob.status === "processing") {
       triggerProcessGeneration().catch((error) => {
         console.error("Error triggering process-generation:", error);
       });
-    } else if (typedJob.status === "processing") {
-      const updatedAt = typedJob.updated_at
-        ? new Date(typedJob.updated_at).getTime()
-        : typedJob.created_at
-          ? new Date(typedJob.created_at).getTime()
-          : Date.now();
-      const now = Date.now();
-      const stalledThreshold = 30 * 1000; // 30 seconds
-
-      if (now - updatedAt > stalledThreshold) {
-        // Re-trigger for stalled jobs (function may have timed out)
-        triggerProcessGeneration().catch((error) => {
-          console.error("Error re-triggering process-generation:", error);
-        });
-      }
     }
 
     // Build the response
