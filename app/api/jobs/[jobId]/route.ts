@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { handleApiError } from "@/lib/api/errors";
+import { env } from "@/lib/env";
 import type { GetJobStatusResponse, GenerationJob } from "@/types/api";
 import type { ModelSnapshot, GenerationJobStatusRow } from "@/types/database";
 
@@ -54,6 +55,21 @@ export async function GET(_request: Request, { params }: RouteParams) {
     // Job is already typed from the assertion above
     const typedJob = job;
 
+    // If job is processing but seems stalled (no update in 30s), re-trigger the Edge Function
+    // This handles the case where the function timed out but the queue message is still invisible
+    if (typedJob.status === "processing" || typedJob.status === "pending") {
+      const updatedAt = new Date(typedJob.updated_at).getTime();
+      const now = Date.now();
+      const stalledThreshold = 30 * 1000; // 30 seconds
+
+      if (now - updatedAt > stalledThreshold) {
+        // Re-trigger the Edge Function (fire-and-forget)
+        triggerProcessGeneration().catch((error) => {
+          console.error("Error re-triggering process-generation:", error);
+        });
+      }
+    }
+
     // Build the response
     const generationJob: GenerationJob = {
       id: typedJob.id,
@@ -101,5 +117,38 @@ export async function GET(_request: Request, { params }: RouteParams) {
     return NextResponse.json(response);
   } catch (error) {
     return handleApiError(error);
+  }
+}
+
+/**
+ * Fire-and-forget trigger for the process-generation Edge Function
+ */
+async function triggerProcessGeneration(): Promise<void> {
+  const supabaseUrl = env.supabase.url;
+  const serviceRoleKey = env.supabase.serviceRoleKey;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.error("Missing Supabase configuration for Edge Function trigger");
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `${supabaseUrl}/functions/v1/process-generation`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${serviceRoleKey}`,
+          "Content-Type": "application/json",
+        },
+      },
+    );
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error("Edge Function trigger failed:", response.status, text);
+    }
+  } catch (error) {
+    console.error("Error calling Edge Function:", error);
   }
 }

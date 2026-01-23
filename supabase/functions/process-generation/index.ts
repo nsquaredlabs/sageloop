@@ -154,7 +154,9 @@ async function generateAnthropic(
 }
 
 /**
- * Process a single generation job
+ * Process a single generation job (resumable)
+ * If the function times out mid-processing, it can be resumed and will skip
+ * scenarios that already have outputs.
  */
 async function processJob(
   supabase: ReturnType<typeof createClient>,
@@ -166,11 +168,11 @@ async function processJob(
 
   console.log(`Processing job ${jobId} for project ${project_id}`);
 
-  // Mark job as processing
+  // Mark job as processing (only set started_at if not already set)
   await supabase.rpc("update_generation_job_progress", {
     p_job_id: jobId,
     p_status: "processing",
-    p_started_at: new Date().toISOString(),
+    p_started_at: job.status === "pending" ? new Date().toISOString() : null,
   });
 
   // Fetch scenarios for the project
@@ -191,6 +193,50 @@ async function processJob(
       p_errors: JSON.stringify([
         { scenario_id: 0, error: "No scenarios found" },
       ]),
+      p_completed_at: new Date().toISOString(),
+    });
+    return;
+  }
+
+  // Check which scenarios were already completed FOR THIS JOB (for resumability)
+  // We use the job's output_ids array, not all outputs for the scenario
+  // This ensures new batches with different configs generate fresh outputs
+  const existingOutputIds = job.output_ids || [];
+
+  let completedScenarioIds = new Set<number>();
+
+  if (existingOutputIds.length > 0) {
+    // Fetch which scenarios these outputs belong to
+    const { data: existingOutputs } = await supabase
+      .from("outputs")
+      .select("id, scenario_id")
+      .in("id", existingOutputIds);
+
+    completedScenarioIds = new Set(
+      (existingOutputs || []).map(
+        (o: { scenario_id: number }) => o.scenario_id,
+      ),
+    );
+  }
+
+  console.log(
+    `Found ${completedScenarioIds.size} already completed scenarios, ${scenarios.length - completedScenarioIds.size} remaining`,
+  );
+
+  // Filter to only scenarios that need processing
+  const scenariosToProcess = (scenarios as Scenario[]).filter(
+    (s) => !completedScenarioIds.has(s.id),
+  );
+
+  // If all scenarios are already done, mark job complete
+  if (scenariosToProcess.length === 0) {
+    console.log(`All scenarios already processed for job ${jobId}`);
+    await supabase.rpc("update_generation_job_progress", {
+      p_job_id: jobId,
+      p_status: "completed",
+      p_completed_scenarios: scenarios.length,
+      p_failed_scenarios: 0,
+      p_output_ids: existingOutputIds,
       p_completed_at: new Date().toISOString(),
     });
     return;
@@ -227,20 +273,22 @@ async function processJob(
       ? new Anthropic({ apiKey: effectiveApiKey })
       : null;
 
-  // Process scenarios
-  const outputIds: number[] = [];
-  const errors: Array<{ scenario_id: number; error: string }> = [];
-  let completedCount = 0;
-  let failedCount = 0;
+  // Initialize with existing progress
+  const outputIds: number[] = [...existingOutputIds];
+  const errors: Array<{ scenario_id: number; error: string }> =
+    job.errors || [];
+  let completedCount = completedScenarioIds.size;
+  let failedCount = job.failed_scenarios || 0;
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
+  let newCompletedCount = 0; // Track only new completions for quota
 
   // Interpolate system prompt once
   const interpolatedSystemPrompt = model_config.system_prompt
     ? interpolateVariables(model_config.system_prompt, model_config.variables)
     : undefined;
 
-  for (const scenario of scenarios as Scenario[]) {
+  for (const scenario of scenariosToProcess) {
     try {
       // Interpolate user message
       const interpolatedUserMessage = interpolateVariables(
@@ -296,6 +344,7 @@ async function processJob(
 
       outputIds.push(output.id);
       completedCount++;
+      newCompletedCount++;
 
       // Update progress
       await supabase.rpc("update_generation_job_progress", {
@@ -328,14 +377,14 @@ async function processJob(
     }
   }
 
-  // Increment usage quota for successful generations
-  if (completedCount > 0) {
+  // Increment usage quota for NEW successful generations only
+  if (newCompletedCount > 0) {
     const modelTier = getModelTier(modelName);
     await supabase.rpc("increment_usage", {
       workbench_uuid: workbench_id,
       model_tier: modelTier,
       model_name: modelName,
-      count: completedCount,
+      count: newCompletedCount,
       input_tokens: totalInputTokens || null,
       output_tokens: totalOutputTokens || null,
       project_id: project_id,
@@ -344,7 +393,7 @@ async function processJob(
 
   // Determine final status
   let finalStatus: string;
-  if (failedCount === 0) {
+  if (completedCount === scenarios.length) {
     finalStatus = "completed";
   } else if (completedCount === 0) {
     finalStatus = "failed";
@@ -403,12 +452,13 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Read messages from the queue (batch of 1 for now)
-    // Using visibility timeout of 300 seconds (5 minutes) for long-running jobs
+    // Using visibility timeout of 120 seconds - slightly longer than typical function timeout
+    // If function times out, message becomes visible again for retry
     const { data: messages, error: queueError } = await supabase.rpc(
       "pgmq_read",
       {
         p_queue_name: "generation_jobs",
-        p_vt: 300, // 5 minute visibility timeout
+        p_vt: 120, // 2 minute visibility timeout
         p_qty: 1, // Process one job at a time
       },
     );
@@ -485,8 +535,8 @@ Deno.serve(async (req) => {
 
         // Delete the message after successful processing
         await supabase.rpc("pgmq_delete", {
-          queue_name: "generation_jobs",
-          msg_id: msg.msg_id,
+          p_queue_name: "generation_jobs",
+          p_msg_id: msg.msg_id,
         });
 
         results.push({ jobId: jobMessage.job_id, status: "processed" });
@@ -508,8 +558,8 @@ Deno.serve(async (req) => {
 
         // Delete the message to prevent infinite retries
         await supabase.rpc("pgmq_delete", {
-          queue_name: "generation_jobs",
-          msg_id: msg.msg_id,
+          p_queue_name: "generation_jobs",
+          p_msg_id: msg.msg_id,
         });
 
         results.push({ jobId: jobMessage.job_id, status: "error" });
