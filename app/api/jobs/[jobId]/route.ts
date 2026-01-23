@@ -55,9 +55,15 @@ export async function GET(_request: Request, { params }: RouteParams) {
     // Job is already typed from the assertion above
     const typedJob = job;
 
-    // If job is processing but seems stalled (no update in 30s), re-trigger the Edge Function
-    // This handles the case where the function timed out but the queue message is still invisible
-    if (typedJob.status === "processing" || typedJob.status === "pending") {
+    // Trigger Edge Function if job needs processing
+    // - For 'pending' jobs: always trigger (kick off processing)
+    // - For 'processing' jobs: only trigger if stalled (no update in 30s)
+    if (typedJob.status === "pending") {
+      // Always trigger for pending jobs - this is likely the first poll after enqueueing
+      triggerProcessGeneration().catch((error) => {
+        console.error("Error triggering process-generation:", error);
+      });
+    } else if (typedJob.status === "processing") {
       const updatedAt = typedJob.updated_at
         ? new Date(typedJob.updated_at).getTime()
         : typedJob.created_at
@@ -67,7 +73,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
       const stalledThreshold = 30 * 1000; // 30 seconds
 
       if (now - updatedAt > stalledThreshold) {
-        // Re-trigger the Edge Function (fire-and-forget)
+        // Re-trigger for stalled jobs (function may have timed out)
         triggerProcessGeneration().catch((error) => {
           console.error("Error re-triggering process-generation:", error);
         });
@@ -137,21 +143,18 @@ async function triggerProcessGeneration(): Promise<void> {
   }
 
   try {
-    const response = await fetch(
-      `${supabaseUrl}/functions/v1/process-generation`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${serviceRoleKey}`,
-          "Content-Type": "application/json",
-        },
+    // Use keepalive to ensure request survives even if caller disconnects
+    // Don't await response - we just need to send the request
+    fetch(`${supabaseUrl}/functions/v1/process-generation`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${serviceRoleKey}`,
+        "Content-Type": "application/json",
       },
-    );
-
-    if (!response.ok) {
-      const text = await response.text();
-      console.error("Edge Function trigger failed:", response.status, text);
-    }
+      keepalive: true,
+    }).catch((error) => {
+      console.error("Edge Function trigger failed:", error);
+    });
   } catch (error) {
     console.error("Error calling Edge Function:", error);
   }

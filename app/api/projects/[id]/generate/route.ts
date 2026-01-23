@@ -13,7 +13,6 @@ import {
   validateSystemPrompt,
   validateScenarioInput,
 } from "@/lib/security/prompt-validation";
-import { env } from "@/lib/env";
 import type { ModelConfig, UserApiKeys } from "@/types/database";
 import type { EnqueueGenerationResponse } from "@/types/api";
 
@@ -177,11 +176,8 @@ export async function POST(_request: Request, { params }: RouteParams) {
       );
     }
 
-    // Fire-and-forget: Trigger the Edge Function to process the job
-    // Don't await - let it run in the background
-    triggerProcessGeneration().catch((error) => {
-      console.error("Error triggering process-generation:", error);
-    });
+    // Note: Edge Function is triggered by the job status endpoint when frontend polls
+    // This avoids the "EarlyDrop" issue from fire-and-forget HTTP calls
 
     const response: EnqueueGenerationResponse = {
       success: true,
@@ -196,38 +192,5 @@ export async function POST(_request: Request, { params }: RouteParams) {
     return NextResponse.json(response, { headers });
   } catch (error) {
     return handleApiError(error);
-  }
-}
-
-/**
- * Fire-and-forget trigger for the process-generation Edge Function
- */
-async function triggerProcessGeneration(): Promise<void> {
-  const supabaseUrl = env.supabase.url;
-  const serviceRoleKey = env.supabase.serviceRoleKey;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    console.error("Missing Supabase configuration for Edge Function trigger");
-    return;
-  }
-
-  try {
-    const response = await fetch(
-      `${supabaseUrl}/functions/v1/process-generation`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${serviceRoleKey}`,
-          "Content-Type": "application/json",
-        },
-      },
-    );
-
-    if (!response.ok) {
-      const text = await response.text();
-      console.error("Edge Function trigger failed:", response.status, text);
-    }
-  } catch (error) {
-    console.error("Error calling Edge Function:", error);
   }
 }
