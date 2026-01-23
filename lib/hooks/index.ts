@@ -19,3 +19,9 @@ export {
 } from "./useOnboardingState";
 
 export { useApiPost, type UseApiPostResult } from "./useApiPost";
+
+export {
+  useJobPolling,
+  type UseJobPollingOptions,
+  type UseJobPollingResult,
+} from "./useJobPolling";

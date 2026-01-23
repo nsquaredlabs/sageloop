@@ -198,3 +198,41 @@ export interface WorkbenchSubscription {
   current_period_end: string;
   allow_premium_models: boolean;
 }
+
+// ============================================================================
+// Generation Job Types (Async Queue System)
+// ============================================================================
+
+/**
+ * Status of an async generation job
+ * Note: Run `npx supabase gen types typescript` after migration to update Database types
+ */
+export type GenerationJobStatus =
+  | "pending"
+  | "processing"
+  | "completed"
+  | "failed"
+  | "partial";
+
+/**
+ * Generation job status record
+ * Stored in generation_job_status table
+ * Note: Run `npx supabase gen types typescript` after migration to update Database types
+ */
+export interface GenerationJobStatusRow {
+  id: string;
+  project_id: number;
+  workbench_id: string;
+  status: GenerationJobStatus;
+  total_scenarios: number;
+  completed_scenarios: number;
+  failed_scenarios: number;
+  output_ids: number[];
+  errors: Array<{ scenario_id: number; error: string }>;
+  model_config: ModelConfig;
+  api_keys_snapshot: UserApiKeys | null;
+  created_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  updated_at: string | null;
+}
