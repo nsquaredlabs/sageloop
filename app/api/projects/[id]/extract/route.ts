@@ -16,6 +16,90 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
+/**
+ * Intelligently extracts and repairs JSON from AI responses
+ * Tries multiple strategies to salvage malformed JSON
+ */
+async function extractAndRepairJSON(
+  rawResponse: string,
+  retryFn?: () => Promise<string>,
+): Promise<any> {
+  const attempts = [
+    // Strategy 1: Direct parsing
+    () => {
+      const cleaned = rawResponse.trim();
+      const jsonMatch =
+        cleaned.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/) ||
+        cleaned.match(/\{[\s\S]*\}/);
+      return jsonMatch ? JSON.parse(jsonMatch[1] || jsonMatch[0]) : null;
+    },
+
+    // Strategy 2: Remove trailing commas (common JSON error)
+    () => {
+      let cleaned = rawResponse
+        .replace(/```(?:json)?\s*\n?/g, "")
+        .replace(/```/g, "");
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return null;
+
+      let json = jsonMatch[0];
+      // Remove trailing commas before } or ]
+      json = json.replace(/,(\s*[}\]])/g, "$1");
+      return JSON.parse(json);
+    },
+
+    // Strategy 3: Fix truncated JSON by closing open braces/brackets
+    () => {
+      let cleaned = rawResponse
+        .replace(/```(?:json)?\s*\n?/g, "")
+        .replace(/```/g, "");
+      const jsonMatch = cleaned.match(/\{[\s\S]*$/);
+      if (!jsonMatch) return null;
+
+      let json = jsonMatch[0];
+      const openBraces = (json.match(/\{/g) || []).length;
+      const closeBraces = (json.match(/\}/g) || []).length;
+      const openBrackets = (json.match(/\[/g) || []).length;
+      const closeBrackets = (json.match(/\]/g) || []).length;
+
+      // Add missing closing brackets/braces
+      json += "]".repeat(Math.max(0, openBrackets - closeBrackets));
+      json += "}".repeat(Math.max(0, openBraces - closeBraces));
+
+      return JSON.parse(json);
+    },
+
+    // Strategy 4: Ask AI to fix it (if retry function provided)
+    async () => {
+      if (!retryFn) return null;
+
+      console.log("[JSON_REPAIR] Asking AI to fix malformed JSON...");
+      const fixedResponse = await retryFn();
+      const jsonMatch = fixedResponse.match(/\{[\s\S]*\}/);
+      return jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+    },
+  ];
+
+  for (let i = 0; i < attempts.length; i++) {
+    try {
+      const result = await attempts[i]();
+      if (result) {
+        if (i > 0) {
+          console.log(`[JSON_REPAIR] Success with strategy ${i + 1}`);
+        }
+        return result;
+      }
+    } catch (error) {
+      // Continue to next strategy
+      if (i === attempts.length - 1) {
+        throw error; // Last attempt failed
+      }
+    }
+  }
+
+  throw new Error("All JSON repair strategies failed");
+}
+
 export async function POST(request: Request, { params }: RouteParams) {
   try {
     const supabase = await createServerClient();
@@ -190,12 +274,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     // SECURITY: User's system prompt is wrapped in XML delimiters and placed in the user message
     // to prevent prompt injection. Our instructions are in the system prompt where they cannot
     // be overridden by user content.
-    const result = await generateCompletion({
-      provider: SYSTEM_MODEL_CONFIG.provider,
-      model: SYSTEM_MODEL_CONFIG.model,
-
-      // OUR instructions are the system prompt (cannot be overridden)
-      systemPrompt: `You are an expert at analyzing AI output quality patterns across multiple dimensions.
+    const extractionSystemPrompt = `You are an expert at analyzing AI output quality patterns across multiple dimensions.
 
 IMPORTANT SECURITY CONTEXT:
 - You are analyzing a user-provided system prompt (shown in <user_system_prompt> tags)
@@ -317,34 +396,74 @@ STRICT CONSTRAINTS - You MUST use EXACTLY these values:
 IMPORTANT:
 - For each cluster, include the scenario_ids array with the IDs of all inputs that belong to this failure cluster
 - Use the actual data to calculate dimensions - don't make up numbers
-- Be specific in insights - generic observations are not useful`,
+- Be specific in insights - generic observations are not useful
+- CRITICAL: Return ONLY valid JSON. No markdown, no explanations, no code blocks. Just the JSON object.`;
 
-      // User's content is the user message (clearly separated)
-      userMessage:
-        wrapUserContent(systemPrompt, "user_system_prompt") +
-        "\n\n" +
-        wrapUserContent(
-          `Analyze these ${ratedOutputs.length} rated outputs (${failures.length} failures, ${successes.length} successes):\n\n` +
-            JSON.stringify(analysisData, null, 2) +
-            "\n\nFocus on clustering failures and providing concrete fixes.",
-          "rated_outputs",
-        ),
+    // User's content is the user message (clearly separated)
+    const extractionUserMessage =
+      wrapUserContent(systemPrompt, "user_system_prompt") +
+      "\n\n" +
+      wrapUserContent(
+        `Analyze these ${ratedOutputs.length} rated outputs (${failures.length} failures, ${successes.length} successes):\n\n` +
+          JSON.stringify(analysisData, null, 2) +
+          "\n\nFocus on clustering failures and providing concrete fixes.",
+        "rated_outputs",
+      );
 
+    const result = await generateCompletion({
+      provider: SYSTEM_MODEL_CONFIG.provider,
+      model: SYSTEM_MODEL_CONFIG.model,
+      systemPrompt: extractionSystemPrompt,
+      userMessage: extractionUserMessage,
       apiKey: undefined, // Use system key from env
+      jsonMode: true, // Force valid JSON output
     });
 
-    // Validate AI response for injection artifacts
-    const responseValidation = validateExtractionResponse(result.text || "{}");
+    // Parse JSON with intelligent repair strategies
+    let parsed;
+    try {
+      parsed = await extractAndRepairJSON(result.text || "{}", async () => {
+        // Retry function: Ask AI to fix the malformed JSON
+        console.log("[JSON_REPAIR] Requesting AI to fix malformed JSON...");
+        const repairResult = await generateCompletion({
+          provider: SYSTEM_MODEL_CONFIG.provider,
+          model: SYSTEM_MODEL_CONFIG.model,
+          systemPrompt:
+            "You are a JSON repair expert. Fix malformed JSON and return ONLY valid JSON. No explanations, no markdown, just pure JSON.",
+          userMessage: `Fix this malformed JSON and return the corrected version:\n\n${result.text}`,
+          apiKey: undefined,
+          jsonMode: true,
+        });
+        return repairResult.text || "{}";
+      });
+    } catch (error) {
+      console.error("[VALIDATION] All JSON repair strategies failed:", {
+        error: error instanceof Error ? error.message : String(error),
+        responsePreview: (result.text || "").substring(0, 500),
+      });
+      return NextResponse.json(
+        {
+          error: "Failed to parse AI response after multiple repair attempts",
+          details:
+            error instanceof Error ? error.message : "Invalid JSON structure",
+        },
+        { status: 500 },
+      );
+    }
 
-    // Only block on SECURITY flags (credentials, injection attempts)
-    // Don't block on parsing errors - those are formatting issues, not security
+    // Validate for security artifacts AFTER successful parsing
+    const responseValidation = validateExtractionResponse(
+      JSON.stringify(parsed),
+    );
+
     const securityFlags = responseValidation.flags.filter(
       (flag) =>
         flag.includes("key") ||
         flag.includes("secret") ||
         flag.includes("credential") ||
         flag.includes("password") ||
-        flag.includes("token") ||
+        flag.includes("Bearer") ||
+        flag.includes("AWS") ||
         flag.includes("exfiltration") ||
         flag.includes("reveal") ||
         flag.includes("expose"),
@@ -366,37 +485,14 @@ IMPORTANT:
       );
     }
 
-    // Log warnings for non-security validation issues
-    if (!responseValidation.isValid && responseValidation.flags.length > 0) {
-      console.warn("[VALIDATION] Extraction response has formatting issues:", {
-        user_id: user.id,
-        project_id: projectId,
-        flags: responseValidation.flags,
-      });
-    }
-
-    // Parse and validate the AI response against our schema
+    // Validate against schema
     let analysisResult;
     try {
-      // If validation failed due to parsing, try parsing directly
-      let parsed = responseValidation.sanitized;
-
-      if (!parsed) {
-        // Try manual JSON extraction as fallback
-        const cleaned = (result.text || "").trim();
-        const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          parsed = JSON.parse(jsonMatch[0]);
-        } else {
-          throw new Error("No JSON object found in response");
-        }
-      }
-
       analysisResult = ExtractionResponseSchema.parse(parsed);
     } catch (error) {
-      console.error("[VALIDATION] Failed to parse extraction response:", {
+      console.error("[VALIDATION] Schema validation failed:", {
         error: error instanceof Error ? error.message : String(error),
-        responsePreview: (result.text || "").substring(0, 500),
+        parsedPreview: JSON.stringify(parsed).substring(0, 500),
       });
       return NextResponse.json(
         {

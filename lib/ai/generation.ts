@@ -44,6 +44,7 @@ export interface GenerationConfig {
   apiKey?: string;
   maxTokens?: number;
   variables?: Record<string, string>;
+  jsonMode?: boolean; // Force valid JSON output (OpenAI only)
 }
 
 export interface GenerationResult {
@@ -100,6 +101,7 @@ export async function generateCompletion(
     apiKey,
     maxTokens,
     variables,
+    jsonMode = false,
   } = config;
 
   // Interpolate variables into prompts
@@ -120,6 +122,8 @@ export async function generateCompletion(
           : []),
         { role: "user" as const, content: interpolatedUserMessage },
       ],
+      // Force valid JSON when jsonMode is enabled
+      ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
     });
 
     return {
