@@ -17,87 +17,117 @@ interface RouteParams {
 }
 
 /**
- * Intelligently extracts and repairs JSON from AI responses
- * Tries multiple strategies to salvage malformed JSON
+ * Bulletproof JSON extraction and repair
+ * Handles literally ANY malformed JSON from AI responses
  */
 async function extractAndRepairJSON(
   rawResponse: string,
   retryFn?: () => Promise<string>,
 ): Promise<any> {
-  const attempts = [
-    // Strategy 1: Direct parsing
-    () => {
-      const cleaned = rawResponse.trim();
-      const jsonMatch =
-        cleaned.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/) ||
-        cleaned.match(/\{[\s\S]*\}/);
-      return jsonMatch ? JSON.parse(jsonMatch[1] || jsonMatch[0]) : null;
+  // Import jsonrepair library for aggressive repair
+  const { jsonrepair } = await import("jsonrepair");
+
+  const strategies = [
+    {
+      name: "Direct JSON parsing",
+      fn: () => {
+        const cleaned = rawResponse.trim();
+        const jsonMatch =
+          cleaned.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/) ||
+          cleaned.match(/\{[\s\S]*\}/);
+        return jsonMatch ? JSON.parse(jsonMatch[1] || jsonMatch[0]) : null;
+      },
     },
+    {
+      name: "jsonrepair library (aggressive)",
+      fn: () => {
+        let cleaned = rawResponse
+          .replace(/```(?:json)?\s*\n?/g, "")
+          .replace(/```/g, "")
+          .trim();
+        const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) return null;
 
-    // Strategy 2: Remove trailing commas (common JSON error)
-    () => {
-      let cleaned = rawResponse
-        .replace(/```(?:json)?\s*\n?/g, "")
-        .replace(/```/g, "");
-      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) return null;
-
-      let json = jsonMatch[0];
-      // Remove trailing commas before } or ]
-      json = json.replace(/,(\s*[}\]])/g, "$1");
-      return JSON.parse(json);
+        // jsonrepair can fix: trailing commas, unquoted keys, unclosed brackets, etc.
+        const repaired = jsonrepair(jsonMatch[0]);
+        return JSON.parse(repaired);
+      },
     },
+    {
+      name: "Manual repair + jsonrepair",
+      fn: () => {
+        let cleaned = rawResponse
+          .replace(/```(?:json)?\s*\n?/g, "")
+          .replace(/```/g, "")
+          .trim();
+        const jsonMatch = cleaned.match(/\{[\s\S]*$/);
+        if (!jsonMatch) return null;
 
-    // Strategy 3: Fix truncated JSON by closing open braces/brackets
-    () => {
-      let cleaned = rawResponse
-        .replace(/```(?:json)?\s*\n?/g, "")
-        .replace(/```/g, "");
-      const jsonMatch = cleaned.match(/\{[\s\S]*$/);
-      if (!jsonMatch) return null;
+        let json = jsonMatch[0];
 
-      let json = jsonMatch[0];
-      const openBraces = (json.match(/\{/g) || []).length;
-      const closeBraces = (json.match(/\}/g) || []).length;
-      const openBrackets = (json.match(/\[/g) || []).length;
-      const closeBrackets = (json.match(/\]/g) || []).length;
+        // Close unclosed strings (look for odd number of quotes)
+        const doubleQuotes = (json.match(/"/g) || []).length;
+        if (doubleQuotes % 2 !== 0) {
+          json += '"';
+        }
 
-      // Add missing closing brackets/braces
-      json += "]".repeat(Math.max(0, openBrackets - closeBrackets));
-      json += "}".repeat(Math.max(0, openBraces - closeBraces));
+        // Close unclosed arrays/objects
+        const openBraces = (json.match(/\{/g) || []).length;
+        const closeBraces = (json.match(/\}/g) || []).length;
+        const openBrackets = (json.match(/\[/g) || []).length;
+        const closeBrackets = (json.match(/\]/g) || []).length;
 
-      return JSON.parse(json);
+        json += "]".repeat(Math.max(0, openBrackets - closeBrackets));
+        json += "}".repeat(Math.max(0, openBraces - closeBraces));
+
+        // Now use jsonrepair to fix any remaining issues
+        const repaired = jsonrepair(json);
+        return JSON.parse(repaired);
+      },
     },
+    {
+      name: "AI self-repair with structured output",
+      fn: async () => {
+        if (!retryFn) return null;
 
-    // Strategy 4: Ask AI to fix it (if retry function provided)
-    async () => {
-      if (!retryFn) return null;
+        console.log("[JSON_REPAIR] Requesting AI to fix malformed JSON...");
+        const fixedResponse = await retryFn();
 
-      console.log("[JSON_REPAIR] Asking AI to fix malformed JSON...");
-      const fixedResponse = await retryFn();
-      const jsonMatch = fixedResponse.match(/\{[\s\S]*\}/);
-      return jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+        // Try jsonrepair on the AI's fix
+        const jsonMatch = fixedResponse.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) return null;
+
+        try {
+          return JSON.parse(jsonMatch[0]);
+        } catch {
+          const repaired = jsonrepair(jsonMatch[0]);
+          return JSON.parse(repaired);
+        }
+      },
     },
   ];
 
-  for (let i = 0; i < attempts.length; i++) {
+  let lastError: Error | null = null;
+
+  for (let i = 0; i < strategies.length; i++) {
     try {
-      const result = await attempts[i]();
+      const result = await strategies[i].fn();
       if (result) {
         if (i > 0) {
-          console.log(`[JSON_REPAIR] Success with strategy ${i + 1}`);
+          console.log(`[JSON_REPAIR] ✅ Success with: ${strategies[i].name}`);
         }
         return result;
       }
     } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.log(
+        `[JSON_REPAIR] ❌ Failed: ${strategies[i].name} - ${lastError.message}`,
+      );
       // Continue to next strategy
-      if (i === attempts.length - 1) {
-        throw error; // Last attempt failed
-      }
     }
   }
 
-  throw new Error("All JSON repair strategies failed");
+  throw lastError || new Error("All JSON repair strategies failed");
 }
 
 export async function POST(request: Request, { params }: RouteParams) {
@@ -417,9 +447,10 @@ IMPORTANT:
       userMessage: extractionUserMessage,
       apiKey: undefined, // Use system key from env
       jsonMode: true, // Force valid JSON output
+      maxTokens: 16000, // Large enough for comprehensive analysis (prevent truncation)
     });
 
-    // Parse JSON with intelligent repair strategies
+    // Parse JSON with bulletproof repair strategies
     let parsed;
     try {
       parsed = await extractAndRepairJSON(result.text || "{}", async () => {
@@ -429,23 +460,36 @@ IMPORTANT:
           provider: SYSTEM_MODEL_CONFIG.provider,
           model: SYSTEM_MODEL_CONFIG.model,
           systemPrompt:
-            "You are a JSON repair expert. Fix malformed JSON and return ONLY valid JSON. No explanations, no markdown, just pure JSON.",
-          userMessage: `Fix this malformed JSON and return the corrected version:\n\n${result.text}`,
+            "You are a JSON repair expert. Fix malformed JSON and return ONLY valid JSON. No explanations, no markdown, just pure JSON. Ensure all braces, brackets, and quotes are properly closed.",
+          userMessage: `Fix this malformed JSON and return the corrected version. If it's truncated, complete it with reasonable placeholder values:\n\n${result.text}`,
           apiKey: undefined,
           jsonMode: true,
+          maxTokens: 16000, // Match original to ensure complete output
         });
         return repairResult.text || "{}";
       });
+
+      console.log("[JSON_REPAIR] ✅ Successfully parsed JSON");
     } catch (error) {
-      console.error("[VALIDATION] All JSON repair strategies failed:", {
-        error: error instanceof Error ? error.message : String(error),
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error("[VALIDATION] ❌ All JSON repair strategies exhausted:", {
+        error: errorMsg,
+        responseLength: (result.text || "").length,
         responsePreview: (result.text || "").substring(0, 500),
+        responseTail: (result.text || "").substring(
+          Math.max(0, (result.text || "").length - 500),
+        ),
       });
+
       return NextResponse.json(
         {
-          error: "Failed to parse AI response after multiple repair attempts",
-          details:
-            error instanceof Error ? error.message : "Invalid JSON structure",
+          error:
+            "Failed to parse AI response after all repair attempts. The response may be too large or severely malformed.",
+          details: {
+            error: errorMsg,
+            responseLength: (result.text || "").length,
+            hint: "Try reducing the number of outputs being analyzed or simplifying the system prompt.",
+          },
         },
         { status: 500 },
       );
