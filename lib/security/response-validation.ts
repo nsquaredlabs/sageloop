@@ -12,35 +12,50 @@ export interface ResponseValidation {
 }
 
 /**
- * Patterns that might indicate successful injection or data exfiltration
+ * Patterns that indicate ACTUAL injection success or data exfiltration
+ * (not just analytical discussion of security concepts)
  */
 const INJECTION_ARTIFACTS = [
-  // Secrets and credentials
-  { pattern: /\bapi[_\s]?key\b/gi, description: "Possible API key exposure" },
-  { pattern: /\bsecret\b/gi, description: "Possible secret exposure" },
-  { pattern: /\btoken\b/gi, description: "Possible token exposure" },
-  { pattern: /\bpassword\b/gi, description: "Possible password exposure" },
+  // Actual credential patterns (not just mentions of the words)
   {
-    pattern: /\benvironment[_\s]?variable\b/gi,
-    description: "Possible environment variable exposure",
+    pattern: /sk-[a-zA-Z0-9]{20,}/g,
+    description: "Actual OpenAI API key pattern detected",
+  },
+  {
+    pattern: /Bearer\s+[A-Za-z0-9\-._~+/]+=*/g,
+    description: "Bearer token detected",
+  },
+  {
+    pattern: /AKIA[0-9A-Z]{16}/g,
+    description: "AWS access key detected",
+  },
+  {
+    // Actual credential key-value pairs with suspicious values
+    pattern:
+      /(secret|password|key|token)\s*[:=]\s*["']?[A-Za-z0-9+/=\-_]{16,}["']?/gi,
+    description: "Credential key-value pair detected",
   },
 
-  // Training data references
+  // Instruction leakage attempts
   {
-    pattern: /training[_\s]?data/gi,
-    description: "Reference to training data",
-  },
-  {
-    pattern: /system[_\s]?prompt/gi,
-    description: "Reference to system prompt internals",
+    pattern:
+      /(here (is|are)|found|revealed|exposed|leaked)\s+(the\s+)?(original|system|actual|full)\s+(instructions?|prompt)/gi,
+    description: "Attempt to reveal system instructions detected",
   },
 
-  // Tool/function exposure (if we add tools in the future)
+  // Data exfiltration commands
   {
-    pattern: /available[_\s]?tools/gi,
-    description: "Listing available tools",
+    pattern:
+      /(print|output|display|return|show)\s+(all\s+)?(environment|env|secrets?|keys|passwords|training[_\s]?data)/gi,
+    description: "Data exfiltration command detected",
   },
-  { pattern: /function[_\s]?list/gi, description: "Listing functions" },
+
+  // System internals exposure (only if actively revealing, not discussing)
+  {
+    pattern:
+      /(revealing|exposing|leaking|dumping)\s+(the\s+)?(system|internal|hidden|secret)\s+(prompt|instructions?|data)/gi,
+    description: "Attempt to expose system internals detected",
+  },
 ];
 
 /**
@@ -89,6 +104,8 @@ export function validateExtractionResponse(
     const responseText = JSON.stringify(parsed).toLowerCase();
 
     for (const { pattern, description } of INJECTION_ARTIFACTS) {
+      // Reset regex lastIndex to avoid state issues with global flag
+      pattern.lastIndex = 0;
       if (pattern.test(responseText)) {
         flags.push(description);
       }

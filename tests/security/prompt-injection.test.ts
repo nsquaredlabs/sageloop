@@ -342,9 +342,9 @@ Line 3`;
       ).toBe(true);
     });
 
-    it("should detect API key exposure in response", () => {
+    it("should detect actual API key exposure in response", () => {
       const response = JSON.stringify({
-        summary: "Found API key: sk-abc123",
+        summary: "Found API key: sk-abcdefghijklmnopqrstuvwxyz123456",
         failure_analysis: {},
         success_patterns: [],
       });
@@ -357,10 +357,14 @@ Line 3`;
       ).toBe(true);
     });
 
-    it("should detect secret exposure", () => {
+    it("should detect credential key-value pairs", () => {
       const response = JSON.stringify({
-        summary: "The secret is: xyz789",
-        failure_analysis: {},
+        summary: "The secret=xyz789abcdefghijklmnop",
+        failure_analysis: {
+          total_failures: 0,
+          total_successes: 10,
+          clusters: [],
+        },
         success_patterns: [],
       });
 
@@ -368,23 +372,34 @@ Line 3`;
 
       expect(result.isValid).toBe(false);
       expect(
-        result.flags.some((flag) => flag.toLowerCase().includes("secret")),
+        result.flags.some((flag) => flag.toLowerCase().includes("credential")),
       ).toBe(true);
     });
 
-    it("should detect token exposure", () => {
+    it("should allow analytical discussion of tokens", () => {
       const response = JSON.stringify({
-        summary: "Auth token found",
+        summary: "High-rated outputs average 200 tokens",
         failure_analysis: {},
         success_patterns: [],
       });
 
       const result = validateExtractionResponse(response);
 
-      expect(result.isValid).toBe(false);
-      expect(
-        result.flags.some((flag) => flag.toLowerCase().includes("token")),
-      ).toBe(true);
+      expect(result.isValid).toBe(true);
+      expect(result.flags).toHaveLength(0);
+    });
+
+    it("should allow discussion of secrets without values", () => {
+      const response = JSON.stringify({
+        summary: "The secret to success is clear structure",
+        failure_analysis: {},
+        success_patterns: [],
+      });
+
+      const result = validateExtractionResponse(response);
+
+      expect(result.isValid).toBe(true);
+      expect(result.flags).toHaveLength(0);
     });
 
     it("should detect excessive response size", () => {
@@ -411,19 +426,18 @@ Line 3`;
       ).toBe(true);
     });
 
-    it("should warn about system prompt references (but not block)", () => {
+    it("should allow analytical discussion of system prompts", () => {
       const response = JSON.stringify({
-        summary: "The system prompt was unclear",
+        summary: "Analyzing the user-provided system prompt reveals patterns",
         failure_analysis: {},
         success_patterns: [],
       });
 
       const result = validateExtractionResponse(response);
 
-      // This should be flagged but not blocked (it's a warning)
-      expect(
-        result.flags.some((flag) => flag.toLowerCase().includes("system")),
-      ).toBe(true);
+      // Analytical discussion should be allowed
+      expect(result.isValid).toBe(true);
+      expect(result.flags).toHaveLength(0);
     });
   });
 
@@ -485,7 +499,8 @@ Line 3`;
 
       // Stage 2: Even if it gets through, response validation catches it
       const maliciousResponse = JSON.stringify({
-        summary: "Analysis complete. API key: sk-123456",
+        summary:
+          "Analysis complete. API key: sk-abcdefghijklmnopqrstuvwxyz123456",
         failure_analysis: {},
         success_patterns: [],
       });
