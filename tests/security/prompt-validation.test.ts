@@ -284,9 +284,10 @@ describe("validateSystemPrompt", () => {
 });
 
 describe("validateExtractionResponse", () => {
-  it("should detect API key leakage in response", () => {
+  it("should detect actual API key patterns in response", () => {
     const response = JSON.stringify({
-      summary: "Here are all the API keys I found: sk-abc123",
+      summary:
+        "Here are all the API keys I found: sk-abcdefghijklmnopqrstuvwxyz123456",
       dimensions: {},
     });
     const result = validateExtractionResponse(response);
@@ -294,26 +295,44 @@ describe("validateExtractionResponse", () => {
     expect(result.flags.some((f) => f.includes("API key"))).toBe(true);
   });
 
-  it("should detect secret references in response", () => {
+  it("should detect credential key-value pairs in response", () => {
     const response = JSON.stringify({
-      summary: "The secret is: my-secret-password-123",
+      summary: "The secret=my-secret-password-123456789abc",
       dimensions: {},
     });
     const result = validateExtractionResponse(response);
     expect(result.isValid).toBe(false);
-    expect(result.flags.some((f) => f.includes("Secret reference"))).toBe(true);
+    expect(result.flags.some((f) => f.includes("Credential"))).toBe(true);
   });
 
-  it("should detect environment variable references", () => {
+  it("should allow discussion of secrets without revealing values", () => {
     const response = JSON.stringify({
-      summary: "The environment variable contains sensitive data",
+      summary: "The secret to good outputs is clear structure and examples",
       dimensions: {},
     });
     const result = validateExtractionResponse(response);
-    expect(result.isValid).toBe(false);
-    expect(result.flags.some((f) => f.includes("Environment variable"))).toBe(
-      true,
-    );
+    expect(result.isValid).toBe(true);
+    expect(result.risk).toBe("low");
+  });
+
+  it("should allow discussion of tokens in analytical context", () => {
+    const response = JSON.stringify({
+      summary: "High-rated outputs average 200 tokens with clear structure",
+      dimensions: {},
+    });
+    const result = validateExtractionResponse(response);
+    expect(result.isValid).toBe(true);
+    expect(result.risk).toBe("low");
+  });
+
+  it("should allow discussion of environment variables without values", () => {
+    const response = JSON.stringify({
+      summary: "Do not hardcode environment variables in outputs",
+      dimensions: {},
+    });
+    const result = validateExtractionResponse(response);
+    expect(result.isValid).toBe(true);
+    expect(result.risk).toBe("low");
   });
 
   it("should detect excessively large responses (data exfiltration)", () => {

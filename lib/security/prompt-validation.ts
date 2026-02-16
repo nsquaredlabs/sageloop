@@ -202,35 +202,40 @@ export function validateExtractionResponse(
   let risk: "low" | "medium" | "high" = "low";
 
   try {
-    // Check for injection artifacts in response
+    // Check for ACTUAL credentials/secrets, not just mentions of the words
     const injectionArtifacts = [
       {
-        pattern: /API[_\s]?key/gi,
-        description: "API key reference detected",
-      },
-      {
+        // Actual OpenAI API key pattern
         pattern: /sk-[a-zA-Z0-9]{20,}/g,
-        description: "OpenAI key pattern detected",
+        description: "Actual API key pattern detected",
       },
       {
-        pattern: /secret/gi,
-        description: "Secret reference detected",
+        // Actual bearer tokens
+        pattern: /Bearer\s+[A-Za-z0-9\-._~+/]+=*/g,
+        description: "Bearer token detected",
       },
       {
-        pattern: /token/gi,
-        description: "Token reference detected",
+        // AWS-style keys
+        pattern: /AKIA[0-9A-Z]{16}/g,
+        description: "AWS access key detected",
       },
       {
-        pattern: /password/gi,
-        description: "Password reference detected",
+        // Actual secret values (key-value pairs with suspicious patterns)
+        pattern:
+          /(secret|password|key|token)\s*[:=]\s*["']?[A-Za-z0-9+/=\-_]{16,}/gi,
+        description: "Credential key-value pair detected",
       },
       {
-        pattern: /environment[_\s]?variable/gi,
-        description: "Environment variable reference detected",
+        // Attempts to reveal system instructions
+        pattern:
+          /(here (is|are)|found|revealed|exposed|leaked)\s+(the\s+)?(original|system|actual|full)\s+(instructions?|prompt)/gi,
+        description: "Instruction leakage attempt detected",
       },
       {
-        pattern: /training[_\s]?data/gi,
-        description: "Training data reference detected",
+        // Suspicious commands to reveal data
+        pattern:
+          /(print|output|display|return|show)\s+(all\s+)?(environment|env|secrets?|keys|passwords)/gi,
+        description: "Data exfiltration command detected",
       },
     ];
 
