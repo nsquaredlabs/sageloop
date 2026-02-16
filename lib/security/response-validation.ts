@@ -80,10 +80,21 @@ export function validateExtractionResponse(
 
   try {
     // Remove markdown code blocks if present
-    let cleaned = response;
+    let cleaned = response.trim();
+
+    // Try to extract JSON from markdown code blocks
     const jsonMatch = response.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
     if (jsonMatch) {
       cleaned = jsonMatch[1].trim();
+    }
+
+    // Try to extract JSON if there's extra text before/after
+    // Look for JSON object between { and }
+    if (!cleaned.startsWith("{")) {
+      const jsonObjectMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (jsonObjectMatch) {
+        cleaned = jsonObjectMatch[0];
+      }
     }
 
     const parsed = JSON.parse(cleaned);
@@ -143,9 +154,19 @@ export function validateExtractionResponse(
       sanitized: parsed,
     };
   } catch (error) {
+    // Log the actual error for debugging
+    console.error("[VALIDATION] JSON parsing failed:", {
+      error: error instanceof Error ? error.message : String(error),
+      responsePreview: response.substring(0, 200),
+    });
+
+    // Parsing errors aren't necessarily security issues
+    // Return the error but don't block (let the caller decide)
     return {
       isValid: false,
-      flags: ["Invalid JSON response - possible injection attempt"],
+      flags: [
+        `Invalid JSON response: ${error instanceof Error ? error.message : "Unknown error"}`,
+      ],
     };
   }
 }

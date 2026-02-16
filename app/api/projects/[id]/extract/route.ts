@@ -336,25 +336,39 @@ IMPORTANT:
     // Validate AI response for injection artifacts
     const responseValidation = validateExtractionResponse(result.text || "{}");
 
-    if (!responseValidation.isValid) {
+    // Only block on SECURITY flags (credentials, injection attempts)
+    // Don't block on parsing errors - those are formatting issues, not security
+    const securityFlags = responseValidation.flags.filter(
+      (flag) =>
+        flag.includes("key") ||
+        flag.includes("secret") ||
+        flag.includes("credential") ||
+        flag.includes("password") ||
+        flag.includes("token") ||
+        flag.includes("exfiltration") ||
+        flag.includes("reveal") ||
+        flag.includes("expose"),
+    );
+
+    if (securityFlags.length > 0) {
       console.error("[SECURITY] Extraction response validation failed:", {
         user_id: user.id,
         project_id: projectId,
-        flags: responseValidation.flags,
+        flags: securityFlags,
       });
 
       return NextResponse.json(
         {
           error: "AI response failed security validation",
-          details: responseValidation.flags,
+          details: securityFlags,
         },
         { status: 500 },
       );
     }
 
-    // Log warnings if any flags were raised
-    if (responseValidation.flags.length > 0) {
-      console.warn("[SECURITY] Extraction response has warnings:", {
+    // Log warnings for non-security validation issues
+    if (!responseValidation.isValid && responseValidation.flags.length > 0) {
+      console.warn("[VALIDATION] Extraction response has formatting issues:", {
         user_id: user.id,
         project_id: projectId,
         flags: responseValidation.flags,
@@ -364,12 +378,26 @@ IMPORTANT:
     // Parse and validate the AI response against our schema
     let analysisResult;
     try {
-      // responseValidation.sanitized is already parsed by validateExtractionResponse
-      analysisResult = ExtractionResponseSchema.parse(
-        responseValidation.sanitized,
-      );
+      // If validation failed due to parsing, try parsing directly
+      let parsed = responseValidation.sanitized;
+
+      if (!parsed) {
+        // Try manual JSON extraction as fallback
+        const cleaned = (result.text || "").trim();
+        const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          parsed = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error("No JSON object found in response");
+        }
+      }
+
+      analysisResult = ExtractionResponseSchema.parse(parsed);
     } catch (error) {
-      console.error("[VALIDATION] Failed to parse extraction response:", error);
+      console.error("[VALIDATION] Failed to parse extraction response:", {
+        error: error instanceof Error ? error.message : String(error),
+        responsePreview: (result.text || "").substring(0, 500),
+      });
       return NextResponse.json(
         {
           error: "AI response format validation failed",
