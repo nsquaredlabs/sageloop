@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { parseId } from "@/lib/utils";
 import type { ModelConfig, ExtractionCriteria } from "@/types/database";
-import { sanitize } from "@/lib/security/sanitize";
+import { sanitizeFilename } from "@/lib/security/sanitize-utils";
 import { generatePytestSuite } from "@/lib/export/pytest-template";
 import { generateJestSuite } from "@/lib/export/jest-template";
 
@@ -136,7 +136,7 @@ export async function GET(request: Request, { params }: RouteParams) {
       .sort((a: any, b: any) => a.ratings[0].stars - b.ratings[0].stars)
       .slice(0, 10); // Get more negative examples for analysis
 
-    const safeFilename = sanitize.filename(project.name);
+    const safeFilename = sanitizeFilename(project.name);
 
     if (format === "markdown") {
       // Generate Markdown documentation
