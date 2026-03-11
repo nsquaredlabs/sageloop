@@ -1,18 +1,18 @@
 "use client";
 
 /**
- * Hook for fetching available AI models based on user's subscription plan
+ * Hook for fetching available AI models.
  *
  * This hook provides a consistent way to fetch models across the application.
  * It handles:
  * - Loading state while fetching
  * - Error handling
- * - Default model selection based on subscription tier
+ * - Default model selection
  * - Caching to prevent unnecessary re-fetches
  *
  * @example
  * ```tsx
- * const { models, defaultModel, isLoading, error, userPlan } = useAvailableModels();
+ * const { models, defaultModel, isLoading, error } = useAvailableModels();
  *
  * if (isLoading) return <Spinner />;
  * if (error) return <ErrorMessage error={error} />;
@@ -35,7 +35,6 @@ export interface ModelInfo {
   id: string;
   name: string;
   provider: "openai" | "anthropic";
-  tier: string;
 }
 
 export interface UseAvailableModelsResult {
@@ -43,8 +42,6 @@ export interface UseAvailableModelsResult {
   models: ModelInfo[];
   /** The recommended default model */
   defaultModel: string;
-  /** The user's plan - always 'unlimited' for open-source */
-  userPlan: "unlimited";
   /** Whether the models are currently being fetched */
   isLoading: boolean;
   /** Error message if fetch failed */
@@ -95,7 +92,6 @@ export function useAvailableModels(): UseAvailableModelsResult {
   return {
     models,
     defaultModel,
-    userPlan: "unlimited",
     isLoading,
     error,
     refetch: fetchModels,

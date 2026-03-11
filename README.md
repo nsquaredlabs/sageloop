@@ -47,7 +47,7 @@ anthropic_api_key: "sk-ant-..."
 default_model: "gpt-4o-mini"
 ```
 
-At least one API key is required. You can also use environment variables `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` instead.
+At least one API key is required. Keys are stored locally and never leave your machine.
 
 ---
 

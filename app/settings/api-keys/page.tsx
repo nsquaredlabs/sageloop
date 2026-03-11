@@ -12,13 +12,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Info, Check, Loader2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
+import { SUPPORTED_MODELS } from "@/lib/ai/default-models";
 
 interface ConfigState {
   openai_api_key: string;
   anthropic_api_key: string;
-  default_model: string;
+  output_model: string;
+  system_model: string;
   has_openai: boolean;
   has_anthropic: boolean;
 }
@@ -27,23 +36,30 @@ export default function ApiKeysPage() {
   const [config, setConfig] = useState<ConfigState | null>(null);
   const [openaiKey, setOpenaiKey] = useState("");
   const [anthropicKey, setAnthropicKey] = useState("");
+  const [outputModel, setOutputModel] = useState("");
+  const [systemModel, setSystemModel] = useState("");
   const [showOpenai, setShowOpenai] = useState(false);
   const [showAnthropic, setShowAnthropic] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSavingKeys, setIsSavingKeys] = useState(false);
+  const [isSavingModels, setIsSavingModels] = useState(false);
 
   useEffect(() => {
     fetch("/api/settings/config")
       .then((r) => r.json())
-      .then(setConfig)
+      .then((data: ConfigState) => {
+        setConfig(data);
+        setOutputModel(data.output_model);
+        setSystemModel(data.system_model);
+      })
       .catch(() => toast.error("Failed to load config"));
   }, []);
 
-  const handleSave = async () => {
+  const handleSaveKeys = async () => {
     if (!openaiKey && !anthropicKey) {
       toast.error("Please enter at least one API key");
       return;
     }
-    setIsSaving(true);
+    setIsSavingKeys(true);
     try {
       const response = await fetch("/api/settings/config", {
         method: "POST",
@@ -57,30 +73,57 @@ export default function ApiKeysPage() {
       toast.success("API keys saved successfully");
       setOpenaiKey("");
       setAnthropicKey("");
-      // Refresh config display
-      const updated = await fetch("/api/settings/config").then((r) => r.json());
+      const updated: ConfigState = await fetch("/api/settings/config").then(
+        (r) => r.json(),
+      );
       setConfig(updated);
+      setOutputModel(updated.output_model);
+      setSystemModel(updated.system_model);
     } catch {
       toast.error("Failed to save API keys");
     } finally {
-      setIsSaving(false);
+      setIsSavingKeys(false);
+    }
+  };
+
+  const handleSaveModels = async () => {
+    setIsSavingModels(true);
+    try {
+      const response = await fetch("/api/settings/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          output_model: outputModel,
+          system_model: systemModel,
+        }),
+      });
+      if (!response.ok) throw new Error("Failed to save");
+      toast.success("Model settings saved");
+      const updated: ConfigState = await fetch("/api/settings/config").then(
+        (r) => r.json(),
+      );
+      setConfig(updated);
+    } catch {
+      toast.error("Failed to save model settings");
+    } finally {
+      setIsSavingModels(false);
     }
   };
 
   return (
     <div className="container mx-auto py-8 max-w-2xl space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">API Keys</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
         <p className="text-muted-foreground mt-2">
-          Configure your AI provider API keys for local use.
+          Configure API keys and models for local use.
         </p>
       </div>
 
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          Your API keys are stored locally in <code>sageloop.config.yaml</code>{" "}
-          and never leave your machine.
+          Your configuration is stored locally in{" "}
+          <code>sageloop.config.yaml</code> and never leaves your machine.
         </AlertDescription>
       </Alert>
 
@@ -167,16 +210,79 @@ export default function ApiKeysPage() {
           </div>
 
           <Button
-            onClick={handleSave}
-            disabled={isSaving || (!openaiKey && !anthropicKey)}
+            onClick={handleSaveKeys}
+            disabled={isSavingKeys || (!openaiKey && !anthropicKey)}
           >
-            {isSaving ? (
+            {isSavingKeys ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Saving...
               </>
             ) : (
               "Save API Keys"
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Model Configuration</CardTitle>
+          <CardDescription>
+            Choose which models to use for output generation and system
+            operations.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Output model */}
+          <div className="space-y-2">
+            <Label htmlFor="output-model">Output Model</Label>
+            <p className="text-xs text-muted-foreground">
+              The model you are testing your prompts with.
+            </p>
+            <Select value={outputModel} onValueChange={setOutputModel}>
+              <SelectTrigger id="output-model">
+                <SelectValue placeholder="Select a model" />
+              </SelectTrigger>
+              <SelectContent>
+                {SUPPORTED_MODELS.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* System model */}
+          <div className="space-y-2">
+            <Label htmlFor="system-model">System Model</Label>
+            <p className="text-xs text-muted-foreground">
+              Used for internal operations: pattern extraction and prompt fix
+              integration.
+            </p>
+            <Select value={systemModel} onValueChange={setSystemModel}>
+              <SelectTrigger id="system-model">
+                <SelectValue placeholder="Select a model" />
+              </SelectTrigger>
+              <SelectContent>
+                {SUPPORTED_MODELS.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Button onClick={handleSaveModels} disabled={isSavingModels}>
+            {isSavingModels ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Model Settings"
             )}
           </Button>
         </CardContent>

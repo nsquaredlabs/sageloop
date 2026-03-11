@@ -72,9 +72,8 @@ describe("System Model Configuration", () => {
   });
 
   describe("Recommended settings", () => {
-    it("should use a capable model (not free tier)", () => {
-      // System operations should use quality models
-      // Free tier uses gpt-5-nano (matches model-tiers.ts)
+    it("should use a capable model (not a minimal model)", () => {
+      // System operations (extraction, insights) should use quality models
       const freeTierModels = ["gpt-5-nano", "gpt-4o-mini"];
       expect(freeTierModels).not.toContain(SYSTEM_MODEL_CONFIG.model);
     });

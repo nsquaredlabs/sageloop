@@ -10,11 +10,6 @@ const TABS = [
     href: "/settings/api-keys",
     description: "Configure AI provider keys",
   },
-  {
-    name: "Account",
-    href: "/settings/account",
-    description: "Preferences and settings",
-  },
 ];
 
 export function SettingsTabs() {

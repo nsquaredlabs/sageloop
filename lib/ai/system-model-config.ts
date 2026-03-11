@@ -6,28 +6,32 @@
  * - Prompt fix integration (applying fixes to system prompts)
  * - Future: Insights generation, quality analysis, etc.
  *
- * This uses system API keys (not user's) to ensure consistent, high-quality analysis.
- * Change these settings to control which provider/model handles all system operations.
- *
- * Note: Temperature has been intentionally removed as of 2025 to align with
- * best practices for consistent outputs, especially for reasoning models.
+ * The model is read from sageloop.config.yaml (`system_model` field),
+ * falling back to claude-haiku-4-5-20251001 if not configured.
  */
 
-export const SYSTEM_MODEL_CONFIG = {
-  /**
-   * AI provider for system operations
-   * - 'openai': Use OpenAI models (GPT-4, etc.)
-   * - 'anthropic': Use Anthropic models (Claude, etc.)
-   */
-  provider: "anthropic" as const,
+import { getConfig } from "@/lib/config";
 
-  /**
-   * Model name for system operations
-   * OpenAI options: 'gpt-4-turbo', 'gpt-4o', 'gpt-4', 'gpt-3.5-turbo'
-   * Anthropic options: 'claude-opus-4-5-20251101', 'claude-sonnet-4-5-20250929', 'claude-haiku-4-5-20251001'
-   */
-  model: "claude-haiku-4-5" as const,
-} as const;
+function resolveSystemModel(): {
+  provider: "openai" | "anthropic";
+  model: string;
+} {
+  const config = getConfig();
+  const model = config.system_model || "claude-haiku-4-5-20251001";
+  const provider: "openai" | "anthropic" = model.includes("claude")
+    ? "anthropic"
+    : "openai";
+  return { provider, model };
+}
+
+export const SYSTEM_MODEL_CONFIG = {
+  get provider(): "openai" | "anthropic" {
+    return resolveSystemModel().provider;
+  },
+  get model(): string {
+    return resolveSystemModel().model;
+  },
+};
 
 /**
  * Type representing the system model configuration

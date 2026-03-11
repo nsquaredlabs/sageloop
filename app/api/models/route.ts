@@ -12,12 +12,10 @@ export async function GET() {
     id: m.id,
     name: m.name,
     provider: m.provider,
-    tier: m.tier,
   }));
 
   return NextResponse.json({
     models,
     defaultModel: "gpt-4o-mini",
-    userPlan: "unlimited",
   });
 }

@@ -2,7 +2,7 @@ export type SubscriptionPlan = "unlimited";
 
 export const DEFAULT_MODEL_FALLBACK = "gpt-4o-mini";
 
-export function getDefaultModelForPlan(_plan?: string): string {
+export function getDefaultModelForPlan(): string {
   return DEFAULT_MODEL_FALLBACK;
 }
 
@@ -47,6 +47,6 @@ export const SUPPORTED_MODELS = [
   },
 ] as const;
 
-export function getModelsForPlan(_plan?: string) {
+export function getModelsForPlan() {
   return [...SUPPORTED_MODELS];
 }

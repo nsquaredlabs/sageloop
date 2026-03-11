@@ -4,15 +4,12 @@ import { resolveProvider } from "@/lib/ai/provider-resolver";
 /**
  * Provider Resolver Tests
  *
- * Phase 1 Strategy (Current):
- * - All users use system API keys with quota enforcement
- * - No user API keys (BYOK) in Phase 1
- * - Requested model is used as-is (no fallback logic)
- * - Quota system enforces model access based on subscription plan
- *
- * Phase 2+ Strategy (Future):
- * - Paid users can bring their own API keys (BYOK)
- * - Tests will be updated to include fallback logic for users without keys
+ * BYOK (bring your own key) is the only behavior:
+ * - Users configure their own API keys via Settings or sageloop.config.yaml
+ * - When a matching provider key is configured, it is used for the request
+ * - When no matching key is configured, apiKey is undefined and the caller
+ *   is responsible for falling back to system credentials (if any)
+ * - The requested model is used as-is (no fallback logic)
  */
 
 describe("Provider Resolver - With user API keys", () => {
@@ -55,14 +52,14 @@ describe("Provider Resolver - With user API keys", () => {
   });
 });
 
-describe("Provider Resolver - Phase 1 (No fallback, use requested model)", () => {
+describe("Provider Resolver - No user API keys configured", () => {
   it("should use requested model as-is when no API keys configured", () => {
     const result = resolveProvider("gpt-4", null);
 
     expect(result.provider).toBe("openai");
     expect(result.modelName).toBe("gpt-4");
     expect(result.apiKey).toBeUndefined();
-    expect(result.usingFallback).toBe(false); // Phase 1: No fallback
+    expect(result.usingFallback).toBe(false);
   });
 
   it("should use requested Claude model when no API keys configured", () => {
@@ -71,7 +68,7 @@ describe("Provider Resolver - Phase 1 (No fallback, use requested model)", () =>
     expect(result.provider).toBe("anthropic");
     expect(result.modelName).toBe("claude-opus-4");
     expect(result.apiKey).toBeUndefined();
-    expect(result.usingFallback).toBe(false); // Phase 1: No fallback
+    expect(result.usingFallback).toBe(false);
   });
 
   it("should use default model (gpt-4o-mini) when no model specified and no keys", () => {
@@ -80,33 +77,33 @@ describe("Provider Resolver - Phase 1 (No fallback, use requested model)", () =>
     expect(result.provider).toBe("openai");
     expect(result.modelName).toBe("gpt-4o-mini");
     expect(result.apiKey).toBeUndefined();
-    expect(result.usingFallback).toBe(false); // Phase 1: No fallback
+    expect(result.usingFallback).toBe(false);
   });
 });
 
-describe("Provider Resolver - Phase 2 behavior (BYOK - Future)", () => {
-  it("should use requested Claude model even when only OpenAI key available (Phase 1)", () => {
-    // Phase 1: No fallback, use system keys for requested model
+describe("Provider Resolver - Mismatched provider keys (BYOK)", () => {
+  it("should not use OpenAI key for a Claude model request", () => {
+    // User has an OpenAI key but requested a Claude model — no matching key
     const result = resolveProvider("claude-opus-4", { openai: "sk-test" });
 
     expect(result.provider).toBe("anthropic");
     expect(result.modelName).toBe("claude-opus-4");
-    expect(result.apiKey).toBeUndefined(); // Uses system key, not user's OpenAI key
+    expect(result.apiKey).toBeUndefined(); // No Anthropic key configured
     expect(result.usingFallback).toBe(false);
   });
 
-  it("should use requested GPT model even when only Anthropic key available (Phase 1)", () => {
-    // Phase 1: No fallback, use system keys for requested model
+  it("should not use Anthropic key for a GPT model request", () => {
+    // User has an Anthropic key but requested a GPT model — no matching key
     const result = resolveProvider("gpt-4", { anthropic: "sk-ant-test" });
 
     expect(result.provider).toBe("openai");
     expect(result.modelName).toBe("gpt-4");
-    expect(result.apiKey).toBeUndefined(); // Uses system key, not user's Anthropic key
+    expect(result.apiKey).toBeUndefined(); // No OpenAI key configured
     expect(result.usingFallback).toBe(false);
   });
 
   it("should use correct provider key when user has matching key", () => {
-    // User requests GPT-4 and has OpenAI key - use it!
+    // User requests GPT-4 and has OpenAI key - use it
     const result = resolveProvider("gpt-4", { openai: "sk-test" });
 
     expect(result.provider).toBe("openai");
@@ -166,9 +163,9 @@ describe("Provider Resolver - Edge cases", () => {
     const result = resolveProvider("gpt-4", {});
 
     expect(result.provider).toBe("openai");
-    expect(result.modelName).toBe("gpt-4"); // Phase 1: Use requested model
+    expect(result.modelName).toBe("gpt-4");
     expect(result.apiKey).toBeUndefined();
-    expect(result.usingFallback).toBe(false); // Phase 1: No fallback
+    expect(result.usingFallback).toBe(false);
   });
 
   it("should handle API keys with undefined values", () => {
@@ -178,25 +175,25 @@ describe("Provider Resolver - Edge cases", () => {
     });
 
     expect(result.provider).toBe("openai");
-    expect(result.modelName).toBe("gpt-4"); // Phase 1: Use requested model
+    expect(result.modelName).toBe("gpt-4");
     expect(result.apiKey).toBeUndefined();
-    expect(result.usingFallback).toBe(false); // Phase 1: No fallback
+    expect(result.usingFallback).toBe(false);
   });
 });
 
 describe("Provider Resolver - System key usage", () => {
-  it("should use system key (undefined) when no user keys provided", () => {
+  it("should return undefined apiKey when no user keys provided", () => {
     const result = resolveProvider("claude-opus-4", null);
 
-    expect(result.apiKey).toBeUndefined(); // System will use env var
-    expect(result.usingFallback).toBe(false); // Phase 1: No fallback
+    expect(result.apiKey).toBeUndefined(); // Caller uses system env var
+    expect(result.usingFallback).toBe(false);
   });
 
-  it("should use system key when user has wrong provider key (Phase 1)", () => {
-    // Phase 1: Even if user has OpenAI key, we use system key for Claude
+  it("should return undefined apiKey when user has a key for a different provider", () => {
+    // User has an OpenAI key but requested Claude — no Anthropic key configured
     const result = resolveProvider("claude-opus-4", { openai: "sk-user-test" });
 
-    expect(result.apiKey).toBeUndefined(); // Uses system key for Claude
-    expect(result.usingFallback).toBe(false); // Phase 1: No fallback
+    expect(result.apiKey).toBeUndefined();
+    expect(result.usingFallback).toBe(false);
   });
 });

@@ -17,7 +17,6 @@
     "test:coverage": "vitest --coverage",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "supabase:gen-types": "supabase gen types typescript --local > types/supabase.ts",
     "security:scan": "eslint . --config eslint.config.security.mjs --ext .ts,.tsx",
     "security:deps": "npm audit --audit-level=moderate",
     "security:secrets": "./scripts/check-secrets.sh",

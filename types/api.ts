@@ -42,8 +42,6 @@ export interface CreateProjectResponse {
       model: string;
       system_prompt?: string;
     };
-    workbench_id: string;
-    created_by: string;
     created_at: string;
     updated_at: string;
     prompt_version: number;
@@ -59,8 +57,6 @@ export interface GetProjectsResponse {
       model: string;
       system_prompt?: string;
     };
-    workbench_id: string;
-    created_by: string;
     created_at: string;
     updated_at: string;
     prompt_version: number;
@@ -445,7 +441,6 @@ export interface EnqueueGenerationResponse {
 export interface GenerationJob {
   id: string;
   project_id: number;
-  workbench_id: string;
   status: "pending" | "processing" | "completed" | "failed" | "partial";
   total_scenarios: number;
   completed_scenarios: number;
