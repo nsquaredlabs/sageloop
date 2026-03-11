@@ -1,4 +1,5 @@
-import { createServerClient } from "@/lib/supabase";
+import { getDb, schema } from "@/lib/db";
+import { eq, desc } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -64,60 +65,55 @@ export default async function InsightsPage({
     ? parseId(queryParams.extractionId)
     : null;
 
-  // Use authenticated server client - enforces RLS
-  const supabase = await createServerClient();
+  const db = getDb();
 
-  // Fetch project details
-  const { data: project, error: projectError } = await supabase
-    .from("projects")
-    .select("*")
-    .eq("id", id)
-    .single();
+  const project = db
+    .select()
+    .from(schema.projects)
+    .where(eq(schema.projects.id, id))
+    .get();
 
-  if (projectError || !project) {
+  if (!project) {
     notFound();
   }
 
   // Fetch extraction (specific one if extractionId provided, otherwise latest)
-  const extractionQuery = supabase
-    .from("extractions")
-    .select("*, system_prompt_snapshot");
+  const extraction = extractionId
+    ? db
+        .select()
+        .from(schema.extractions)
+        .where(eq(schema.extractions.id, extractionId))
+        .get()
+    : (db
+        .select()
+        .from(schema.extractions)
+        .where(eq(schema.extractions.project_id, id))
+        .orderBy(desc(schema.extractions.created_at))
+        .limit(1)
+        .all()[0] ?? null);
 
-  if (extractionId) {
-    extractionQuery.eq("id", extractionId);
-  } else {
-    extractionQuery
-      .eq("project_id", id)
-      .order("created_at", { ascending: false })
-      .limit(1);
-  }
+  // Fetch metric
+  const metric = extractionId
+    ? db
+        .select()
+        .from(schema.metrics)
+        .where(eq(schema.metrics.extraction_id, extractionId))
+        .get()
+    : (db
+        .select()
+        .from(schema.metrics)
+        .where(eq(schema.metrics.project_id, id))
+        .orderBy(desc(schema.metrics.snapshot_time))
+        .limit(1)
+        .all()[0] ?? null);
 
-  const { data: extraction } = await extractionQuery.single();
+  const totalScenarios = db
+    .select({ id: schema.scenarios.id })
+    .from(schema.scenarios)
+    .where(eq(schema.scenarios.project_id, id))
+    .all().length;
 
-  // Fetch metric (for the specific extraction if provided, otherwise latest)
-  const metricQuery = supabase.from("metrics").select("*");
-
-  if (extractionId) {
-    metricQuery.eq("extraction_id", extractionId);
-  } else {
-    metricQuery
-      .eq("project_id", id)
-      .order("snapshot_time", { ascending: false })
-      .limit(1);
-  }
-
-  const { data: metric } = await metricQuery.single();
-
-  // Use the rated_output_count from the extraction snapshot
-  // This ensures historical extractions show the correct confidence based on
-  // the number of ratings that existed at extraction time, not current ratings
   const ratedCount = extraction?.rated_output_count || 0;
-
-  // Fetch total scenario count for the project
-  const { count: totalScenarios } = await supabase
-    .from("scenarios")
-    .select("*", { count: "exact", head: true })
-    .eq("project_id", id);
 
   if (!extraction) {
     return (
@@ -141,11 +137,12 @@ export default async function InsightsPage({
     );
   }
 
-  const criteria = extraction.criteria as unknown as ExtractionCriteria;
+  const criteria = (
+    extraction.criteria ? JSON.parse(extraction.criteria) : {}
+  ) as ExtractionCriteria;
   const successRate = metric?.success_rate || 0;
   const confidenceScore = extraction.confidence_score || 0;
 
-  // Get metric interpretations
   const successInterpretation = interpretSuccessRate(successRate);
   const confidenceInterpretation = interpretConfidence(
     confidenceScore,
@@ -251,7 +248,7 @@ export default async function InsightsPage({
           </div>
         </div>
 
-        {/* Smart Alert Banner - Prioritized single alert */}
+        {/* Smart Alert Banner */}
         {criteria.dimensions && (
           <SmartAlertBanner
             failureRate={
@@ -268,7 +265,7 @@ export default async function InsightsPage({
           />
         )}
 
-        {/* Visual Pattern Diff - Hero Section (Tier 1) */}
+        {/* Visual Pattern Diff */}
         {criteria.dimensions && (
           <div className="mb-8">
             <PatternSummaryCard
@@ -282,7 +279,7 @@ export default async function InsightsPage({
           </div>
         )}
 
-        {/* Failure Analysis - Actionable fixes for failures (Tier 2) */}
+        {/* Failure Analysis */}
         {criteria.failure_analysis &&
           criteria.failure_analysis.clusters &&
           criteria.failure_analysis.clusters.length > 0 && (
@@ -305,18 +302,31 @@ export default async function InsightsPage({
                   <ApplyFixButton
                     projectId={id.toString()}
                     currentPrompt={
-                      (project.model_config as unknown as ModelConfig)
-                        .system_prompt || ""
+                      (project.model_config
+                        ? (JSON.parse(project.model_config) as ModelConfig)
+                        : ({} as ModelConfig)
+                      ).system_prompt || ""
                     }
                     clusters={criteria.failure_analysis.clusters}
-                    totalScenarios={totalScenarios || 0}
+                    totalScenarios={totalScenarios}
                   />
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
                   {criteria.failure_analysis.clusters.map(
-                    (cluster: any, index: number) => (
+                    (
+                      cluster: {
+                        name: string;
+                        count: number;
+                        severity: string;
+                        pattern: string;
+                        root_cause: string;
+                        example_inputs?: string[];
+                        suggested_fix: string;
+                      },
+                      index: number,
+                    ) => (
                       <div
                         key={index}
                         className="border rounded-lg p-4 bg-muted/30"
@@ -380,7 +390,7 @@ export default async function InsightsPage({
             </Card>
           )}
 
-        {/* Confidence Explainer - Actionable Confidence Guidance (Tier 2) */}
+        {/* Confidence Explainer */}
         {criteria.dimensions && (
           <div id="confidence" className="mb-6">
             <ConfidenceExplainerCard
@@ -392,7 +402,7 @@ export default async function InsightsPage({
           </div>
         )}
 
-        {/* Pattern Fingerprint - Quality Source of Truth (Tier 2) */}
+        {/* Pattern Fingerprint */}
         {criteria.dimensions && (
           <div id="fingerprint" className="mb-6">
             <PatternFingerprintCard
@@ -403,7 +413,7 @@ export default async function InsightsPage({
           </div>
         )}
 
-        {/* System Prompt Snapshot (Tier 3) - Collapsible */}
+        {/* System Prompt Snapshot */}
         {extraction.system_prompt_snapshot && (
           <CollapsibleSystemPrompt
             systemPrompt={extraction.system_prompt_snapshot}
@@ -411,7 +421,7 @@ export default async function InsightsPage({
           />
         )}
 
-        {/* Dimensional Analysis - Shows patterns across 5 dimensions (Tier 3) - Accordion */}
+        {/* Dimensional Analysis */}
         {criteria.dimensions && (
           <DimensionalAnalysisAccordion dimensions={criteria.dimensions} />
         )}

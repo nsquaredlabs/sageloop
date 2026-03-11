@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
-import { parseId } from '@/lib/utils';
+import { NextResponse } from "next/server";
+import { getDb, schema } from "@/lib/db";
+import { eq, desc } from "drizzle-orm";
+import { parseId } from "@/lib/utils";
 
 interface RouteParams {
   params: Promise<{ outputId: string }>;
@@ -8,16 +9,6 @@ interface RouteParams {
 
 export async function POST(request: Request, { params }: RouteParams) {
   try {
-    const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
     const { outputId: outputIdString } = await params;
     const outputId = parseId(outputIdString);
     const body = await request.json();
@@ -26,90 +17,77 @@ export async function POST(request: Request, { params }: RouteParams) {
     // Validate required fields
     if (!stars || stars < 1 || stars > 5) {
       return NextResponse.json(
-        { error: 'Valid star rating (1-5) is required' },
-        { status: 400 }
+        { error: "Valid star rating (1-5) is required" },
+        { status: 400 },
       );
     }
 
-    // Check if output exists (RLS ensures user has access)
-    const { data: output, error: outputError } = await supabase
-      .from('outputs')
-      .select('id')
-      .eq('id', outputId)
-      .single();
+    const db = getDb();
 
-    if (outputError || !output) {
-      return NextResponse.json(
-        { error: 'Output not found' },
-        { status: 404 }
-      );
+    // Check if output exists
+    const output = db
+      .select()
+      .from(schema.outputs)
+      .where(eq(schema.outputs.id, outputId))
+      .get();
+
+    if (!output) {
+      return NextResponse.json({ error: "Output not found" }, { status: 404 });
     }
 
     // Insert rating into database
-    const { data, error } = await supabase
-      .from('ratings')
-      .insert({
+    const data = db
+      .insert(schema.ratings)
+      .values({
         output_id: outputId,
         stars,
         feedback_text: feedback_text || null,
-        tags: tags || null,
+        tags: tags ? JSON.stringify(tags) : null,
       })
-      .select()
-      .single();
+      .returning()
+      .get();
 
-    if (error) {
-      console.error('Supabase error:', error);
-      return NextResponse.json(
-        { error: 'Failed to create rating' },
-        { status: 500 }
-      );
-    }
+    const result = {
+      ...data,
+      tags: data.tags ? JSON.parse(data.tags) : null,
+      metadata: data.metadata ? JSON.parse(data.metadata) : null,
+    };
 
-    return NextResponse.json({ data }, { status: 201 });
+    return NextResponse.json({ data: result }, { status: 201 });
   } catch (error) {
-    console.error('API error:', error);
+    console.error("API error:", error);
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      { error: "Internal server error" },
+      { status: 500 },
     );
   }
 }
 
-export async function GET(request: Request, { params }: RouteParams) {
+export async function GET(_request: Request, { params }: RouteParams) {
   try {
-    const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
     const { outputId: outputIdString } = await params;
     const outputId = parseId(outputIdString);
 
-    const { data, error } = await supabase
-      .from('ratings')
-      .select('*')
-      .eq('output_id', outputId)
-      .order('created_at', { ascending: false });
+    const db = getDb();
+    const rows = db
+      .select()
+      .from(schema.ratings)
+      .where(eq(schema.ratings.output_id, outputId))
+      .orderBy(desc(schema.ratings.created_at))
+      .all();
 
-    if (error) {
-      console.error('Supabase error:', error);
-      return NextResponse.json(
-        { error: 'Failed to fetch ratings' },
-        { status: 500 }
-      );
-    }
+    const data = rows.map((r) => ({
+      ...r,
+      tags: r.tags ? JSON.parse(r.tags) : null,
+      metadata: r.metadata ? JSON.parse(r.metadata) : null,
+    }));
 
     return NextResponse.json({ data });
   } catch (error) {
-    console.error('API error:', error);
+    console.error("API error:", error);
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      { error: "Internal server error" },
+      { status: 500 },
     );
   }
 }

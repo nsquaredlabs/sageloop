@@ -1,5 +1,6 @@
 import { Suspense } from "react";
-import { createServerClient } from "@/lib/supabase";
+import { getDb, schema } from "@/lib/db";
+import { eq, gte, desc, inArray } from "drizzle-orm";
 import { GoldenExamplesTable } from "@/components/golden-examples-table";
 import { GoldenExamplesFilters } from "@/components/golden-examples-filters";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { Star, FileJson, FileText, Download } from "lucide-react";
 import { z } from "zod";
 import { parseId } from "@/lib/utils";
@@ -35,28 +36,19 @@ export default async function GoldenExamplesPage({
   const { id: idString } = await params;
   const id = parseId(idString);
 
-  // SECURITY: Check authentication in Server Component
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const db = getDb();
 
-  if (!user) {
-    redirect("/login");
-  }
-
-  // SECURITY: Verify user has access to this project (RLS enforces this)
-  const { data: project } = await supabase
-    .from("projects")
-    .select("id, name")
-    .eq("id", id)
-    .single();
+  const project = db
+    .select({ id: schema.projects.id, name: schema.projects.name })
+    .from(schema.projects)
+    .where(eq(schema.projects.id, id))
+    .get();
 
   if (!project) {
     notFound();
   }
 
-  // SECURITY: Validate and sanitize filter inputs
+  // Validate and sanitize filter inputs
   const filterSchema = z.object({
     tag: z.string().max(50).optional(),
     rating: z.enum(["4", "5"]).optional(),
@@ -74,26 +66,22 @@ export default async function GoldenExamplesPage({
   const validatedFilters = filterSchema.safeParse(queryParams);
 
   if (!validatedFilters.success) {
-    // Invalid filters - log warning
     console.warn("Invalid filter params:", validatedFilters.error);
   }
 
-  // Apply filters from search params (only if validation passed)
   const filters = validatedFilters.success ? validatedFilters.data : {};
 
-  // Fetch golden examples (4-5 star ratings)
-  // NOTE: Supabase cannot filter on nested relations, so we need to:
-  // 1. Get all scenario IDs for this project
-  // 2. Get all output IDs for those scenarios
-  // 3. Filter ratings by those output IDs
+  // Get scenario IDs for this project
+  const scenarios = db
+    .select({
+      id: schema.scenarios.id,
+      input_text: schema.scenarios.input_text,
+    })
+    .from(schema.scenarios)
+    .where(eq(schema.scenarios.project_id, id))
+    .all();
 
-  // Step 1: Get scenario IDs for this project
-  const { data: scenarios } = await supabase
-    .from("scenarios")
-    .select("id")
-    .eq("project_id", id);
-
-  const scenarioIds = scenarios?.map((s) => s.id) || [];
+  const scenarioIds = scenarios.map((s) => s.id);
 
   if (scenarioIds.length === 0) {
     return (
@@ -111,13 +99,18 @@ export default async function GoldenExamplesPage({
     );
   }
 
-  // Step 2: Get output IDs for those scenarios
-  const { data: outputs } = await supabase
-    .from("outputs")
-    .select("id, scenario_id, output_text")
-    .in("scenario_id", scenarioIds);
+  // Get outputs for those scenarios
+  const outputs = db
+    .select({
+      id: schema.outputs.id,
+      scenario_id: schema.outputs.scenario_id,
+      output_text: schema.outputs.output_text,
+    })
+    .from(schema.outputs)
+    .where(inArray(schema.outputs.scenario_id, scenarioIds))
+    .all();
 
-  const outputIds = outputs?.map((o) => o.id) || [];
+  const outputIds = outputs.map((o) => o.id);
 
   if (outputIds.length === 0) {
     return (
@@ -135,102 +128,72 @@ export default async function GoldenExamplesPage({
     );
   }
 
-  // Step 3: Fetch ratings for those outputs (4-5 stars only)
-  let ratingsQuery = supabase
-    .from("ratings")
-    .select("id, stars, feedback_text, tags, created_at, output_id")
-    .in("output_id", outputIds)
-    .gte("stars", 4)
-    .order("stars", { ascending: false })
-    .order("created_at", { ascending: false });
+  // Fetch ratings for those outputs (4-5 stars only)
+  let ratingsResult = db
+    .select()
+    .from(schema.ratings)
+    .where(inArray(schema.ratings.output_id, outputIds))
+    .all()
+    .filter((r) => (r.stars ?? 0) >= 4);
 
-  // Apply filters
+  // Apply filters in JS (SQLite doesn't support complex filter chaining like Supabase)
   if (filters.rating) {
-    ratingsQuery = ratingsQuery.eq("stars", parseInt(filters.rating));
+    const ratingNum = parseInt(filters.rating);
+    ratingsResult = ratingsResult.filter((r) => r.stars === ratingNum);
   }
   if (filters.dateFrom) {
-    ratingsQuery = ratingsQuery.gte("created_at", filters.dateFrom);
+    ratingsResult = ratingsResult.filter(
+      (r) => r.created_at && r.created_at >= filters.dateFrom!,
+    );
   }
   if (filters.dateTo) {
-    ratingsQuery = ratingsQuery.lte("created_at", filters.dateTo);
-  }
-  if (filters.tag) {
-    ratingsQuery = ratingsQuery.contains("tags", [filters.tag]);
-  }
-
-  const { data: ratings, error } = await ratingsQuery;
-
-  if (error) {
-    console.error("Error loading golden examples:", error);
-    return (
-      <div className="container mx-auto py-8">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold tracking-tight">Golden Examples</h1>
-          <p className="text-destructive mt-2">Error loading golden examples</p>
-        </div>
-      </div>
+    ratingsResult = ratingsResult.filter(
+      (r) => r.created_at && r.created_at <= filters.dateTo!,
     );
   }
 
+  // Sort by stars desc, then created_at desc
+  ratingsResult.sort((a, b) => {
+    if ((b.stars ?? 0) !== (a.stars ?? 0))
+      return (b.stars ?? 0) - (a.stars ?? 0);
+    return (b.created_at ?? "").localeCompare(a.created_at ?? "");
+  });
+
   // Combine ratings with output and scenario data
-  const goldenExamples = (ratings || [])
+  const completeExamples = ratingsResult
     .map((rating) => {
-      const output = outputs?.find((o) => o.id === rating.output_id);
+      const output = outputs.find((o) => o.id === rating.output_id);
       if (!output) return null;
 
-      const scenario = scenarios?.find((s) => s.id === output.scenario_id);
+      const scenario = scenarios.find((s) => s.id === output.scenario_id);
       if (!scenario) return null;
 
-      // Get full scenario data with input_text
+      const tags = rating.tags ? (JSON.parse(rating.tags) as string[]) : [];
+
+      // Apply tag filter
+      if (filters.tag && !tags.includes(filters.tag)) return null;
+
       return {
-        ...rating,
+        id: rating.id,
+        stars: rating.stars,
+        feedback_text: rating.feedback_text,
+        tags,
+        created_at: rating.created_at,
+        output_id: rating.output_id,
         output: {
           id: output.id,
           output_text: output.output_text,
           scenario: {
             id: scenario.id,
-            input_text: "", // Will be filled in next step
+            input_text: scenario.input_text,
           },
         },
       };
     })
-    .filter((ex) => ex !== null);
-
-  // Fetch full scenario data including input_text
-  const { data: fullScenarios } = await supabase
-    .from("scenarios")
-    .select("id, input_text")
-    .in(
-      "id",
-      scenarioIds.filter((id) =>
-        goldenExamples.some((ex) => ex?.output.scenario.id === id),
-      ),
-    );
-
-  // Update examples with full scenario data
-  const completeExamples = goldenExamples
-    .map((example) => {
-      if (!example) return null;
-      const scenario = fullScenarios?.find(
-        (s) => s.id === example.output.scenario.id,
-      );
-      return {
-        ...example,
-        output: {
-          ...example.output,
-          scenario: {
-            ...example.output.scenario,
-            input_text: scenario?.input_text || "",
-          },
-        },
-      };
-    })
-    .filter((ex) => ex !== null);
+    .filter((ex): ex is NonNullable<typeof ex> => ex !== null);
 
   // Get unique tags for filter
-  const allTags = completeExamples
-    .flatMap((ex) => ex?.tags || [])
-    .filter((tag): tag is string => typeof tag === "string");
+  const allTags = completeExamples.flatMap((ex) => ex.tags);
   const availableTags = Array.from(new Set(allTags)).sort();
 
   return (
@@ -294,7 +257,13 @@ export default async function GoldenExamplesPage({
         />
 
         <Suspense fallback={<div>Loading...</div>}>
-          <GoldenExamplesTable examples={completeExamples as any} />
+          <GoldenExamplesTable
+            examples={
+              completeExamples as Parameters<
+                typeof GoldenExamplesTable
+              >[0]["examples"]
+            }
+          />
         </Suspense>
       </div>
     </div>

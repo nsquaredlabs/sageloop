@@ -10,14 +10,6 @@ export {
   type UseAvailableModelsResult,
 } from "./useAvailableModels";
 
-export {
-  useOnboardingState,
-  type WizardStep,
-  type ProjectData,
-  type OnboardingWizardState,
-  type UseOnboardingState,
-} from "./useOnboardingState";
-
 export { useApiPost, type UseApiPostResult } from "./useApiPost";
 
 export {

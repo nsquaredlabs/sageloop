@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase";
+import { getDb, schema } from "@/lib/db";
+import { eq, inArray, desc } from "drizzle-orm";
 import { parseId } from "@/lib/utils";
 import type { ModelConfig, ExtractionCriteria } from "@/types/database";
 import { sanitizeFilename } from "@/lib/security/sanitize-utils";
@@ -12,17 +13,9 @@ interface RouteParams {
 
 export async function GET(request: Request, { params }: RouteParams) {
   try {
-    const supabase = await createServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { id: projectIdString } = await params;
     const projectId = parseId(projectIdString);
+    const db = getDb();
     const { searchParams } = new URL(request.url);
     const format = searchParams.get("format") || "json"; // 'json', 'markdown', 'pytest', or 'jest'
 
@@ -35,25 +28,25 @@ export async function GET(request: Request, { params }: RouteParams) {
       );
     }
 
-    // Fetch project details (RLS ensures user has access)
-    const { data: project, error: projectError } = await supabase
-      .from("projects")
-      .select("*")
-      .eq("id", projectId)
-      .single();
+    // Fetch project
+    const project = db
+      .select()
+      .from(schema.projects)
+      .where(eq(schema.projects.id, projectId))
+      .get();
 
-    if (projectError || !project) {
+    if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
     // Fetch latest extraction
-    const { data: extraction } = await supabase
-      .from("extractions")
-      .select("*")
-      .eq("project_id", projectId)
-      .order("created_at", { ascending: false })
+    const extraction = db
+      .select()
+      .from(schema.extractions)
+      .where(eq(schema.extractions.project_id, projectId))
+      .orderBy(desc(schema.extractions.created_at))
       .limit(1)
-      .single();
+      .get();
 
     if (!extraction) {
       return NextResponse.json(
@@ -62,13 +55,14 @@ export async function GET(request: Request, { params }: RouteParams) {
       );
     }
 
-    // First fetch all scenarios for this project
-    const { data: projectScenarios } = await supabase
-      .from("scenarios")
-      .select("id")
-      .eq("project_id", projectId);
+    // Fetch all scenarios for this project
+    const projectScenarios = db
+      .select({ id: schema.scenarios.id })
+      .from(schema.scenarios)
+      .where(eq(schema.scenarios.project_id, projectId))
+      .all();
 
-    const scenarioIds = projectScenarios?.map((s) => s.id) || [];
+    const scenarioIds = projectScenarios.map((s) => s.id);
 
     if (scenarioIds.length === 0) {
       return NextResponse.json(
@@ -77,50 +71,63 @@ export async function GET(request: Request, { params }: RouteParams) {
       );
     }
 
-    // Fetch golden examples (high-rated outputs)
-    const { data: goldenExamples } = await supabase
-      .from("outputs")
-      .select(
-        `
-        *,
-        scenario:scenarios (
-          id,
-          input_text
-        ),
-        ratings (
-          stars,
-          feedback_text,
-          tags
-        )
-      `,
-      )
-      .in("scenario_id", scenarioIds)
-      .not("ratings", "is", null);
+    // Fetch all outputs for these scenarios
+    const allOutputs = db
+      .select()
+      .from(schema.outputs)
+      .where(inArray(schema.outputs.scenario_id, scenarioIds))
+      .all();
 
-    // Fetch negative examples (low-rated outputs)
-    const { data: negativeExamples } = await supabase
-      .from("outputs")
-      .select(
-        `
-        *,
-        scenario:scenarios (
-          id,
-          input_text
-        ),
-        ratings (
-          stars,
-          feedback_text
-        )
-      `,
-      )
-      .in("scenario_id", scenarioIds)
-      .not("ratings", "is", null);
+    const outputIds = allOutputs.map((o) => o.id);
 
-    const modelConfig = project.model_config as unknown as ModelConfig;
-    const criteria = extraction.criteria as unknown as ExtractionCriteria;
+    // Fetch all ratings for these outputs
+    const allRatings =
+      outputIds.length > 0
+        ? db
+            .select()
+            .from(schema.ratings)
+            .where(inArray(schema.ratings.output_id, outputIds))
+            .all()
+        : [];
+
+    // Fetch all scenarios with full data for joining
+    const allScenarios = db
+      .select()
+      .from(schema.scenarios)
+      .where(inArray(schema.scenarios.id, scenarioIds))
+      .all();
+
+    // Build enriched output objects (scenario + ratings joined in memory)
+    const enrichedOutputs = allOutputs
+      .map((output) => {
+        const outputRatings = allRatings
+          .filter((r) => r.output_id === output.id)
+          .map((r) => ({
+            ...r,
+            tags: r.tags ? JSON.parse(r.tags) : null,
+            metadata: r.metadata ? JSON.parse(r.metadata) : null,
+          }));
+        const scenario = allScenarios.find((s) => s.id === output.scenario_id);
+        return {
+          ...output,
+          model_snapshot: output.model_snapshot
+            ? JSON.parse(output.model_snapshot)
+            : null,
+          ratings: outputRatings,
+          scenario: scenario
+            ? { id: scenario.id, input_text: scenario.input_text }
+            : null,
+        };
+      })
+      .filter((o) => o.ratings.length > 0 && o.scenario);
+
+    const modelConfig = JSON.parse(project.model_config || "{}") as ModelConfig;
+    const criteria = JSON.parse(
+      extraction.criteria || "{}",
+    ) as ExtractionCriteria;
 
     // Filter examples by star ratings in application code
-    const filteredGolden = (goldenExamples || [])
+    const filteredGolden = enrichedOutputs
       .filter(
         (ex: any) =>
           ex.ratings && ex.ratings.length > 0 && ex.ratings[0].stars >= 4,
@@ -128,18 +135,17 @@ export async function GET(request: Request, { params }: RouteParams) {
       .sort((a: any, b: any) => b.ratings[0].stars - a.ratings[0].stars)
       .slice(0, 10);
 
-    const filteredNegative = (negativeExamples || [])
+    const filteredNegative = enrichedOutputs
       .filter(
         (ex: any) =>
           ex.ratings && ex.ratings.length > 0 && ex.ratings[0].stars <= 2,
       )
       .sort((a: any, b: any) => a.ratings[0].stars - b.ratings[0].stars)
-      .slice(0, 10); // Get more negative examples for analysis
+      .slice(0, 10);
 
     const safeFilename = sanitizeFilename(project.name);
 
     if (format === "markdown") {
-      // Generate Markdown documentation
       const markdown = generateMarkdownDoc(
         project,
         modelConfig,
@@ -155,7 +161,6 @@ export async function GET(request: Request, { params }: RouteParams) {
         },
       });
     } else if (format === "pytest") {
-      // Generate Pytest test suite
       const exportData = {
         project: {
           name: project.name,
@@ -195,7 +200,6 @@ export async function GET(request: Request, { params }: RouteParams) {
         },
       });
     } else if (format === "jest") {
-      // Generate Jest test suite
       const exportData = {
         project: {
           name: project.name,
@@ -235,7 +239,6 @@ export async function GET(request: Request, { params }: RouteParams) {
         },
       });
     } else {
-      // Generate JSON test suite
       const testSuite = generateTestSuite(
         project,
         modelConfig,
@@ -291,7 +294,6 @@ function generateTestSuite(
         let clusterName = null;
 
         if (criteria.failure_analysis?.clusters) {
-          // Find cluster that includes this input
           const matchingCluster = criteria.failure_analysis.clusters.find(
             (cluster: any) =>
               cluster.example_inputs?.some(
@@ -356,7 +358,7 @@ function generateMarkdownDoc(
     lines.push("");
   }
 
-  // Failure Analysis Section (replaces generic quality criteria)
+  // Failure Analysis Section
   if (
     criteria.failure_analysis &&
     criteria.failure_analysis.clusters &&
@@ -443,7 +445,6 @@ function generateMarkdownDoc(
       .forEach((example: any, index: number) => {
         const rating = example.ratings[0];
 
-        // Find matching cluster for this example
         let matchingCluster = null;
         if (criteria.failure_analysis?.clusters) {
           matchingCluster = criteria.failure_analysis.clusters.find(

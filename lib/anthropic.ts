@@ -1,17 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk';
-import { env } from '@/lib/env';
+import Anthropic from "@anthropic-ai/sdk";
+import { getConfig } from "@/lib/config";
 
-// Factory function to create Anthropic client with custom API key
-// Use this when working with user-provided API keys
 export function createAnthropicClient(apiKey?: string): Anthropic {
-  // Only allow browser usage in test environment
-  const config: any = {
-    apiKey: apiKey || env.anthropic.apiKey,
-  };
-
-  if (typeof window !== 'undefined' && env.isTest) {
-    config.dangerouslyAllowBrowser = true;
-  }
-
-  return new Anthropic(config);
+  const config = getConfig();
+  return new Anthropic({
+    apiKey: apiKey || config.anthropic_api_key || process.env.ANTHROPIC_API_KEY,
+  });
 }

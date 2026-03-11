@@ -19,12 +19,11 @@ export const contentSecurityPolicy = {
   // Only allow scripts from same origin and specific trusted CDNs
   "default-src": ["'self'"],
 
-  // Scripts: Allow self, inline scripts (for Next.js), and Vercel analytics
+  // Scripts: Allow self and inline scripts (for Next.js)
   "script-src": [
     "'self'",
     "'unsafe-inline'", // Required for Next.js inline scripts
     "'unsafe-eval'", // Required for Next.js development
-    "https://vercel.live",
   ],
 
   // Styles: Allow self and inline styles (for Tailwind)
@@ -39,10 +38,8 @@ export const contentSecurityPolicy = {
   // Connections: API endpoints
   "connect-src": [
     "'self'",
-    "https://*.supabase.co", // Supabase API
     "https://api.openai.com", // OpenAI API
     "https://api.anthropic.com", // Anthropic API
-    "https://vercel.live", // Vercel Analytics
   ],
 
   // Frames: Only allow same origin (prevents clickjacking)
@@ -113,7 +110,6 @@ export const securityHeaders = [
   },
 
   // Strict-Transport-Security (HSTS) - enforce HTTPS
-  // Only apply in production (Vercel handles this automatically)
   {
     key: "Strict-Transport-Security",
     value: "max-age=31536000; includeSubDomains",
@@ -135,12 +131,9 @@ export const devContentSecurityPolicy = {
     "'self'",
     "'unsafe-inline'",
     "'unsafe-eval'", // Required for development
-    "https://vercel.live",
   ],
   "connect-src": [
     ...contentSecurityPolicy["connect-src"],
-    "http://127.0.0.1:54321", // Local Supabase
-    "http://localhost:54321", // Local Supabase (localhost variant)
     "ws:", // WebSocket for hot reload
     "wss:", // Secure WebSocket
   ],

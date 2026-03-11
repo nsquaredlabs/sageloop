@@ -1,4 +1,5 @@
-import { createServerClient } from "@/lib/supabase";
+import { getDb, schema } from "@/lib/db";
+import { eq, asc, desc, inArray } from "drizzle-orm";
 import { parseId } from "@/lib/utils";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +8,10 @@ import { CheckCircle2, AlertCircle, Star } from "lucide-react";
 import Link from "next/link";
 import { AnalyzePatternsButton } from "@/components/analyze-patterns-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { OutputsList } from "@/components/outputs-list";
+import {
+  OutputsList,
+  type ScenarioWithOutput,
+} from "@/components/outputs-list";
 import { Card, CardContent } from "@/components/ui/card";
 
 // Force dynamic rendering to ensure fresh data after generation
@@ -31,98 +35,127 @@ export default async function OutputsPage({
   const retestVersion = queryParams.version;
   const retestCount = queryParams.count;
 
-  // Use authenticated server client - enforces RLS
-  const supabase = await createServerClient();
+  const db = getDb();
 
-  // Fetch project details
-  const { data: project, error: projectError } = await supabase
-    .from("projects")
-    .select("*")
-    .eq("id", id)
-    .single();
+  const project = db
+    .select()
+    .from(schema.projects)
+    .where(eq(schema.projects.id, id))
+    .get();
 
-  if (projectError || !project) {
+  if (!project) {
     notFound();
   }
 
-  // Fetch scenarios with their outputs and ratings
-  // Note: Supabase doesn't support ordering nested relations in the select query
-  // We need to fetch scenarios and then get outputs separately with proper ordering
-  const { data: scenarios } = await supabase
-    .from("scenarios")
-    .select("*")
-    .eq("project_id", id)
-    .order("order", { ascending: true });
+  const scenarios = db
+    .select()
+    .from(schema.scenarios)
+    .where(eq(schema.scenarios.project_id, id))
+    .orderBy(asc(schema.scenarios.order))
+    .all();
 
-  // Fetch all outputs for these scenarios, ordered by generated_at DESC
-  const scenarioIds = scenarios?.map((s) => s.id) || [];
+  const scenarioIds = scenarios.map((s) => s.id);
 
-  // Only fetch outputs if we have scenarios
-  let outputs = null;
+  // Fetch outputs with ratings for all scenarios
+  type OutputRow = {
+    id: number;
+    scenario_id: number;
+    output_text: string;
+    generated_at: string | null;
+    ratings: Array<{
+      id: number;
+      stars: number | null;
+      feedback_text: string | null;
+      created_at: string | null;
+      metadata: string | null;
+    }>;
+  };
+
+  let outputs: OutputRow[] = [];
   if (scenarioIds.length > 0) {
-    const { data: outputsData, error: outputsError } = await supabase
-      .from("outputs")
-      .select(
-        `
-        id,
-        scenario_id,
-        output_text,
-        generated_at,
-        ratings (
-          id,
-          stars,
-          feedback_text,
-          created_at
-        )
-      `,
-      )
-      .in("scenario_id", scenarioIds)
-      .order("generated_at", { ascending: false });
+    const rawOutputs = db
+      .select()
+      .from(schema.outputs)
+      .where(inArray(schema.outputs.scenario_id, scenarioIds))
+      .orderBy(desc(schema.outputs.generated_at))
+      .all();
 
-    if (outputsError) {
-      console.error("Error fetching outputs:", outputsError);
-    }
-    outputs = outputsData;
+    const outputIds = rawOutputs.map((o) => o.id);
+    const allRatings =
+      outputIds.length > 0
+        ? db
+            .select()
+            .from(schema.ratings)
+            .where(inArray(schema.ratings.output_id, outputIds))
+            .all()
+        : [];
+
+    outputs = rawOutputs.map((o) => ({
+      id: o.id,
+      scenario_id: o.scenario_id,
+      output_text: o.output_text,
+      generated_at: o.generated_at,
+      ratings: allRatings.filter((r) => r.output_id === o.id),
+    }));
   }
 
-  const modelConfig = project.model_config as {
+  const modelConfig = (
+    project.model_config ? JSON.parse(project.model_config) : {}
+  ) as {
     model?: string;
     system_prompt?: string;
   };
 
   // Get the most recent output for each scenario
-  const scenariosWithLatestOutput = scenarios?.map((scenario: any) => {
-    // Find all outputs for this scenario (already ordered by generated_at DESC)
-    const scenarioOutputs =
-      outputs?.filter((o) => o.scenario_id === scenario.id) || [];
-    // First output is the most recent (due to DESC ordering)
-    const latestOutput = scenarioOutputs.length > 0 ? scenarioOutputs[0] : null;
-
-    return {
-      ...scenario,
-      latestOutput,
-    };
-  });
-
-  const totalOutputs =
-    scenariosWithLatestOutput?.filter((s) => s.latestOutput).length || 0;
-  const ratedOutputs =
-    scenariosWithLatestOutput?.filter(
-      (s) => s.latestOutput?.ratings && s.latestOutput.ratings.length > 0,
-    ).length || 0;
-
-  // Count carried-forward ratings that need review
-  const needsReviewCount =
-    scenariosWithLatestOutput?.filter((s) => {
-      const rating = s.latestOutput?.ratings?.[0];
-      const metadata = rating?.metadata as {
-        carried_forward?: boolean;
-        needs_review?: boolean;
-      } | null;
-      return (
-        metadata?.carried_forward === true && metadata?.needs_review === true
+  const scenariosWithLatestOutput: ScenarioWithOutput[] = scenarios.map(
+    (scenario) => {
+      const scenarioOutputs = outputs.filter(
+        (o) => o.scenario_id === scenario.id,
       );
-    }).length || 0;
+      const latestOutput =
+        scenarioOutputs.length > 0 ? scenarioOutputs[0] : null;
+      return {
+        id: scenario.id,
+        input_text: scenario.input_text,
+        order: scenario.order,
+        latestOutput: latestOutput
+          ? {
+              id: latestOutput.id,
+              output_text: latestOutput.output_text,
+              generated_at:
+                latestOutput.generated_at ?? new Date().toISOString(),
+              ratings: latestOutput.ratings.map((r) => ({
+                id: r.id,
+                stars: r.stars ?? 0,
+                feedback_text: r.feedback_text,
+                created_at: r.created_at ?? new Date().toISOString(),
+                metadata: r.metadata
+                  ? (JSON.parse(r.metadata) as {
+                      carried_forward?: boolean;
+                      similarity_score?: number;
+                      needs_review?: boolean;
+                    })
+                  : undefined,
+              })),
+            }
+          : null,
+      };
+    },
+  );
+
+  const totalOutputs = scenariosWithLatestOutput.filter(
+    (s) => s.latestOutput,
+  ).length;
+  const ratedOutputs = scenariosWithLatestOutput.filter(
+    (s) => s.latestOutput?.ratings && s.latestOutput.ratings.length > 0,
+  ).length;
+
+  const needsReviewCount = scenariosWithLatestOutput.filter((s) => {
+    const metadata = s.latestOutput?.ratings?.[0]?.metadata;
+    return (
+      metadata?.carried_forward === true && metadata?.needs_review === true
+    );
+  }).length;
 
   return (
     <div>
@@ -143,7 +176,7 @@ export default async function OutputsPage({
               <div className="flex gap-4 mt-4 text-sm text-muted-foreground">
                 <div>
                   <span className="font-medium">Generated:</span> {totalOutputs}
-                  /{scenarios?.length || 0} outputs
+                  /{scenarios.length} outputs
                 </div>
                 <div>
                   <span className="font-medium">Rated:</span> {ratedOutputs}/
@@ -163,7 +196,7 @@ export default async function OutputsPage({
           </div>
         </div>
 
-        {/* Review Needed Alert - Always show when there are carried-forward ratings needing review */}
+        {/* Review Needed Alert */}
         {needsReviewCount > 0 && (
           <Alert className="mb-6 border-amber-200 bg-amber-50 dark:bg-amber-950/20">
             <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
@@ -196,7 +229,7 @@ export default async function OutputsPage({
         )}
 
         {/* Outputs List */}
-        {scenariosWithLatestOutput && scenariosWithLatestOutput.length > 0 ? (
+        {scenariosWithLatestOutput.length > 0 ? (
           <OutputsList projectId={id} scenarios={scenariosWithLatestOutput} />
         ) : (
           <Card className="border-dashed">

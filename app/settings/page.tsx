@@ -1,6 +1,6 @@
-import { redirect } from 'next/navigation';
+import { redirect } from "next/navigation";
 
-// Redirect /settings to /settings/subscription (default tab)
+// Redirect /settings to /settings/api-keys (default tab)
 export default function SettingsPage() {
-  redirect('/settings/subscription');
+  redirect("/settings/api-keys");
 }

@@ -1,18 +1,33 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
-import { Star, CheckCircle2, AlertCircle, Copy, Keyboard, Check } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
+import { useState, useEffect, useCallback, useMemo } from "react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Star,
+  CheckCircle2,
+  AlertCircle,
+  Copy,
+  Keyboard,
+  Check,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 // Debounce utility
-function debounce<T extends (...args: any[]) => void>(func: T, wait: number): (...args: Parameters<T>) => void {
+function debounce<T extends (...args: any[]) => void>(
+  func: T,
+  wait: number,
+): (...args: Parameters<T>) => void {
   let timeout: NodeJS.Timeout;
   return function executedFunction(...args: Parameters<T>) {
     const later = () => {
@@ -60,20 +75,23 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isQuickRateMode, setIsQuickRateMode] = useState(false);
   const [showKeyboardHint, setShowKeyboardHint] = useState(true);
-  const [feedbackStates, setFeedbackStates] = useState<Record<number, { text: string; isSaving: boolean; lastSaved?: Date }>>({});
-  const [expandedFeedback, setExpandedFeedback] = useState<Record<number, boolean>>({});
-
-  const supabase = createClient();
+  const [feedbackStates, setFeedbackStates] = useState<
+    Record<number, { text: string; isSaving: boolean; lastSaved?: Date }>
+  >({});
+  const [expandedFeedback, setExpandedFeedback] = useState<
+    Record<number, boolean>
+  >({});
 
   // Initialize feedback states from existing ratings
   useEffect(() => {
-    const initialStates: Record<number, { text: string; isSaving: boolean }> = {};
-    scenarios.forEach(scenario => {
+    const initialStates: Record<number, { text: string; isSaving: boolean }> =
+      {};
+    scenarios.forEach((scenario) => {
       const output = scenario.latestOutput;
       const rating = output?.ratings?.[0];
       if (output && rating) {
         initialStates[output.id] = {
-          text: rating.feedback_text || '',
+          text: rating.feedback_text || "",
           isSaving: false,
         };
       }
@@ -86,36 +104,41 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
     () =>
       debounce(async (outputId: number, ratingId: number, text: string) => {
         try {
-          setFeedbackStates(prev => ({
+          setFeedbackStates((prev) => ({
             ...prev,
             [outputId]: { ...prev[outputId], isSaving: true },
           }));
 
-          const { error } = await supabase
-            .from('ratings')
-            .update({ feedback_text: text })
-            .eq('id', ratingId);
+          const response = await fetch(`/api/ratings/${ratingId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ feedback_text: text }),
+          });
 
-          if (error) throw error;
+          if (!response.ok) throw new Error("Failed to save feedback");
 
-          setFeedbackStates(prev => ({
+          setFeedbackStates((prev) => ({
             ...prev,
             [outputId]: { text, isSaving: false, lastSaved: new Date() },
           }));
         } catch (error) {
-          console.error('Error saving feedback:', error);
-          toast.error('Failed to save feedback');
-          setFeedbackStates(prev => ({
+          console.error("Error saving feedback:", error);
+          toast.error("Failed to save feedback");
+          setFeedbackStates((prev) => ({
             ...prev,
             [outputId]: { ...prev[outputId], isSaving: false },
           }));
         }
       }, 500),
-    [supabase]
+    [],
   );
 
-  const handleFeedbackChange = (outputId: number, ratingId: number, text: string) => {
-    setFeedbackStates(prev => ({
+  const handleFeedbackChange = (
+    outputId: number,
+    ratingId: number,
+    text: string,
+  ) => {
+    setFeedbackStates((prev) => ({
       ...prev,
       [outputId]: { ...prev[outputId], text, isSaving: false },
     }));
@@ -129,82 +152,87 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
       index,
       output: scenario.latestOutput,
     }))
-    .filter(item => item.output !== null);
+    .filter((item) => item.output !== null);
 
   // Separate truly unrated outputs for messaging
-  const unratedCount = ratableOutputs.filter(item => {
+  const unratedCount = ratableOutputs.filter((item) => {
     const rating = item.output?.ratings?.[0];
     return !rating;
   }).length;
 
-  const handleQuickRate = useCallback(async (outputId: number, stars: number, scenarioIndex: number) => {
-    try {
-      const scenario = scenarios[scenarioIndex];
-      const output = scenario?.latestOutput;
-      const existingRating = output?.ratings?.[0];
+  const handleQuickRate = useCallback(
+    async (outputId: number, stars: number, scenarioIndex: number) => {
+      try {
+        const scenario = scenarios[scenarioIndex];
+        const output = scenario?.latestOutput;
+        const existingRating = output?.ratings?.[0];
 
-      if (existingRating) {
-        // Update existing rating (for carried-forward ratings)
-        const { error } = await supabase
-          .from('ratings')
-          .update({
-            stars,
-            metadata: null, // Clear carried_forward metadata when manually re-rating
-          })
-          .eq('id', existingRating.id);
-
-        if (error) throw error;
-        toast.success(`Updated to ${stars} stars`);
-      } else {
-        // Create new rating
-        const { error } = await supabase.from('ratings').insert({
-          output_id: outputId,
-          stars,
-          feedback_text: null,
-          tags: null,
-        });
-
-        if (error) throw error;
-        toast.success(`Rated ${stars} stars`);
-      }
-
-      // Refresh the page to show updated data
-      router.refresh();
-
-      // Auto-advance to next output in quick rate mode
-      if (isQuickRateMode) {
-        const currentIndex = ratableOutputs.findIndex(item => item.index === scenarioIndex);
-        if (currentIndex < ratableOutputs.length - 1) {
-          const nextOutput = ratableOutputs[currentIndex + 1];
-          setSelectedIndex(nextOutput.index);
-          // Scroll to next card
-          setTimeout(() => {
-            const element = document.getElementById(`output-${nextOutput.index}`);
-            element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }, 100);
+        if (existingRating) {
+          // Update existing rating (for carried-forward ratings)
+          const response = await fetch(`/api/ratings/${existingRating.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ stars, metadata: null }),
+          });
+          if (!response.ok) throw new Error("Failed to update rating");
+          toast.success(`Updated to ${stars} stars`);
         } else {
-          // End of list, exit quick rate mode
-          setIsQuickRateMode(false);
-          setSelectedIndex(null);
-          toast.success('Finished reviewing outputs!');
+          // Create new rating
+          const response = await fetch(`/api/outputs/${outputId}/ratings`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ stars, feedback_text: null }),
+          });
+          if (!response.ok) throw new Error("Failed to create rating");
+          toast.success(`Rated ${stars} stars`);
         }
+
+        // Refresh the page to show updated data
+        router.refresh();
+
+        // Auto-advance to next output in quick rate mode
+        if (isQuickRateMode) {
+          const currentIndex = ratableOutputs.findIndex(
+            (item) => item.index === scenarioIndex,
+          );
+          if (currentIndex < ratableOutputs.length - 1) {
+            const nextOutput = ratableOutputs[currentIndex + 1];
+            setSelectedIndex(nextOutput.index);
+            // Scroll to next card
+            setTimeout(() => {
+              const element = document.getElementById(
+                `output-${nextOutput.index}`,
+              );
+              element?.scrollIntoView({ behavior: "smooth", block: "center" });
+            }, 100);
+          } else {
+            // End of list, exit quick rate mode
+            setIsQuickRateMode(false);
+            setSelectedIndex(null);
+            toast.success("Finished reviewing outputs!");
+          }
+        }
+      } catch (error) {
+        console.error("Error rating output:", error);
+        toast.error("Failed to rate output");
       }
-    } catch (error) {
-      console.error('Error rating output:', error);
-      toast.error('Failed to rate output');
-    }
-  }, [supabase, router, isQuickRateMode, ratableOutputs]);
+    },
+    [router, isQuickRateMode, ratableOutputs, scenarios],
+  );
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       // Don't trigger if user is typing in an input/textarea
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
         return;
       }
 
       // Number keys 1-5 for rating
-      if (e.key >= '1' && e.key <= '5' && selectedIndex !== null) {
+      if (e.key >= "1" && e.key <= "5" && selectedIndex !== null) {
         const scenario = scenarios[selectedIndex];
         const output = scenario?.latestOutput;
         if (output) {
@@ -215,12 +243,12 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
       }
 
       // Arrow keys for navigation
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         e.preventDefault();
         if (selectedIndex === null) {
           setSelectedIndex(0);
         } else {
-          if (e.key === 'ArrowDown') {
+          if (e.key === "ArrowDown") {
             setSelectedIndex(Math.min(scenarios.length - 1, selectedIndex + 1));
           } else {
             setSelectedIndex(Math.max(0, selectedIndex - 1));
@@ -228,27 +256,32 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
         }
         // Scroll to selected card
         setTimeout(() => {
-          const newIndex = selectedIndex === null ? 0 : (e.key === 'ArrowDown' ? Math.min(scenarios.length - 1, selectedIndex + 1) : Math.max(0, selectedIndex - 1));
+          const newIndex =
+            selectedIndex === null
+              ? 0
+              : e.key === "ArrowDown"
+                ? Math.min(scenarios.length - 1, selectedIndex + 1)
+                : Math.max(0, selectedIndex - 1);
           const element = document.getElementById(`output-${newIndex}`);
-          element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          element?.scrollIntoView({ behavior: "smooth", block: "center" });
         }, 0);
         return;
       }
 
       // Escape to deselect
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         setSelectedIndex(null);
         setIsQuickRateMode(false);
       }
 
       // Question mark to toggle keyboard help
-      if (e.key === '?') {
-        setShowKeyboardHint(prev => !prev);
+      if (e.key === "?") {
+        setShowKeyboardHint((prev) => !prev);
       }
     };
 
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
   }, [selectedIndex, scenarios, handleQuickRate]);
 
   const startQuickRate = () => {
@@ -257,8 +290,10 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
       setSelectedIndex(ratableOutputs[0].index);
       // Scroll to first output
       setTimeout(() => {
-        const element = document.getElementById(`output-${ratableOutputs[0].index}`);
-        element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const element = document.getElementById(
+          `output-${ratableOutputs[0].index}`,
+        );
+        element?.scrollIntoView({ behavior: "smooth", block: "center" });
       }, 100);
     }
   };
@@ -272,9 +307,28 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
           <div className="flex-1">
             <p className="text-sm font-medium mb-1">Keyboard Shortcuts</p>
             <div className="text-xs text-muted-foreground space-y-0.5">
-              <p><kbd className="px-1.5 py-0.5 bg-background border rounded">↑↓</kbd> Navigate outputs</p>
-              <p><kbd className="px-1.5 py-0.5 bg-background border rounded">1-5</kbd> Quick rate selected output</p>
-              <p><kbd className="px-1.5 py-0.5 bg-background border rounded">Esc</kbd> Deselect • <kbd className="px-1.5 py-0.5 bg-background border rounded">?</kbd> Toggle this hint</p>
+              <p>
+                <kbd className="px-1.5 py-0.5 bg-background border rounded">
+                  ↑↓
+                </kbd>{" "}
+                Navigate outputs
+              </p>
+              <p>
+                <kbd className="px-1.5 py-0.5 bg-background border rounded">
+                  1-5
+                </kbd>{" "}
+                Quick rate selected output
+              </p>
+              <p>
+                <kbd className="px-1.5 py-0.5 bg-background border rounded">
+                  Esc
+                </kbd>{" "}
+                Deselect •{" "}
+                <kbd className="px-1.5 py-0.5 bg-background border rounded">
+                  ?
+                </kbd>{" "}
+                Toggle this hint
+              </p>
             </div>
           </div>
           <button
@@ -292,7 +346,8 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
           {!isQuickRateMode ? (
             <Button onClick={startQuickRate} size="lg" variant="default">
               <Star className="mr-2 h-4 w-4" />
-              Quick Rate ({unratedCount > 0 ? `${unratedCount} unrated` : 'All outputs'})
+              Quick Rate (
+              {unratedCount > 0 ? `${unratedCount} unrated` : "All outputs"})
             </Button>
           ) : (
             <div className="flex items-center gap-3 p-3 bg-primary/10 border border-primary/20 rounded-lg flex-1">
@@ -303,7 +358,9 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
                 </p>
               </div>
               <Badge variant="secondary">
-                {selectedIndex !== null ? `${selectedIndex + 1} / ${scenarios.length}` : `${scenarios.length} total`}
+                {selectedIndex !== null
+                  ? `${selectedIndex + 1} / ${scenarios.length}`
+                  : `${scenarios.length} total`}
               </Badge>
               <Button
                 onClick={() => {
@@ -336,9 +393,7 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
               key={scenario.id}
               id={`output-${index}`}
               className={`overflow-hidden transition-all ${
-                isSelected
-                  ? 'ring-2 ring-primary shadow-lg'
-                  : 'hover:shadow-md'
+                isSelected ? "ring-2 ring-primary shadow-lg" : "hover:shadow-md"
               }`}
               onClick={() => setSelectedIndex(index)}
             >
@@ -357,8 +412,8 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
                                 key={i}
                                 className={`h-4 w-4 ${
                                   i < rating.stars
-                                    ? 'fill-yellow-400 text-yellow-400'
-                                    : 'text-muted-foreground/30'
+                                    ? "fill-yellow-400 text-yellow-400"
+                                    : "text-muted-foreground/30"
                                 }`}
                               />
                             ))}
@@ -386,7 +441,8 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
                                   className="text-xs flex items-center gap-1 border-green-600 text-green-700 dark:text-green-400"
                                 >
                                   <CheckCircle2 className="h-3 w-3" />
-                                  Output unchanged ({Math.round(similarityScore * 100)}% similar)
+                                  Output unchanged (
+                                  {Math.round(similarityScore * 100)}% similar)
                                 </Badge>
                               )}
                             </>
@@ -395,11 +451,13 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
                       )}
                       {isSelected && (
                         <Badge variant="default" className="text-xs">
-                          Selected - Press 1-5 to {rating ? 'update' : 'rate'}
+                          Selected - Press 1-5 to {rating ? "update" : "rate"}
                         </Badge>
                       )}
                     </div>
-                    <CardTitle className="text-base font-medium">Input</CardTitle>
+                    <CardTitle className="text-base font-medium">
+                      Input
+                    </CardTitle>
                     <CardDescription className="mt-2">
                       {scenario.input_text}
                     </CardDescription>
@@ -420,7 +478,9 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
                       <div className="pt-4 border-t">
                         <div className="flex items-center justify-between mb-2">
                           <h4 className="text-sm font-medium">
-                            {isCarriedForward ? 'Previous Feedback' : 'Your Feedback'}
+                            {isCarriedForward
+                              ? "Previous Feedback"
+                              : "Your Feedback"}
                           </h4>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             {feedbackStates[output.id]?.isSaving && (
@@ -428,25 +488,28 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
                                 <span className="animate-pulse">Saving...</span>
                               </span>
                             )}
-                            {feedbackStates[output.id]?.lastSaved && !feedbackStates[output.id]?.isSaving && (
-                              <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                                <Check className="h-3 w-3" />
-                                Saved
-                              </span>
-                            )}
+                            {feedbackStates[output.id]?.lastSaved &&
+                              !feedbackStates[output.id]?.isSaving && (
+                                <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                                  <Check className="h-3 w-3" />
+                                  Saved
+                                </span>
+                              )}
                             <Button
                               variant="ghost"
                               size="sm"
                               className="h-6 text-xs"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setExpandedFeedback(prev => ({
+                                setExpandedFeedback((prev) => ({
                                   ...prev,
                                   [output.id]: !prev[output.id],
                                 }));
                               }}
                             >
-                              {expandedFeedback[output.id] ? 'Collapse' : 'Add note'}
+                              {expandedFeedback[output.id]
+                                ? "Collapse"
+                                : "Add note"}
                             </Button>
                           </div>
                         </div>
@@ -455,10 +518,14 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
                           <div className="space-y-2">
                             <Textarea
                               placeholder="Add feedback or notes... Use #tags for quick categorization (e.g., #date-bug, #format-issue)"
-                              value={feedbackStates[output.id]?.text ?? ''}
+                              value={feedbackStates[output.id]?.text ?? ""}
                               onChange={(e) => {
                                 e.stopPropagation();
-                                handleFeedbackChange(output.id, rating.id, e.target.value);
+                                handleFeedbackChange(
+                                  output.id,
+                                  rating.id,
+                                  e.target.value,
+                                );
                               }}
                               onClick={(e) => e.stopPropagation()}
                               onFocus={(e) => e.stopPropagation()}
@@ -466,7 +533,8 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
                               rows={3}
                             />
                             <p className="text-xs text-muted-foreground">
-                              Auto-saves as you type. Use #hashtags to categorize issues.
+                              Auto-saves as you type. Use #hashtags to
+                              categorize issues.
                             </p>
                           </div>
                         ) : (
@@ -480,7 +548,9 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
                         {isCarriedForward && needsReview && (
                           <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-lg">
                             <p className="text-xs text-amber-900 dark:text-amber-100">
-                              <strong>Review recommended:</strong> The output has changed since this rating. Please review to confirm the rating is still accurate.
+                              <strong>Review recommended:</strong> The output
+                              has changed since this rating. Please review to
+                              confirm the rating is still accurate.
                             </p>
                           </div>
                         )}
@@ -490,7 +560,7 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
                     {isSelected && (
                       <div className="pt-4 border-t">
                         <p className="text-sm font-medium mb-3 text-center">
-                          {rating ? 'Update rating' : 'Rate this output'}
+                          {rating ? "Update rating" : "Rate this output"}
                         </p>
                         <div className="flex items-center justify-center gap-2">
                           {[1, 2, 3, 4, 5].map((stars) => (
@@ -500,18 +570,24 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
                                 e.stopPropagation();
                                 handleQuickRate(output.id, stars, index);
                               }}
-                              variant={rating?.stars === stars ? "default" : "outline"}
+                              variant={
+                                rating?.stars === stars ? "default" : "outline"
+                              }
                               size="lg"
                               className="h-16 w-16 flex flex-col hover:bg-primary hover:text-primary-foreground transition-colors"
                             >
                               <Star className="h-6 w-6 mb-1" />
-                              <span className="text-sm font-semibold">{stars}</span>
+                              <span className="text-sm font-semibold">
+                                {stars}
+                              </span>
                             </Button>
                           ))}
                         </div>
                         <div className="mt-3 text-center">
                           <Button asChild variant="ghost" size="sm">
-                            <Link href={`/projects/${projectId}/outputs/${output.id}/rate`}>
+                            <Link
+                              href={`/projects/${projectId}/outputs/${output.id}/rate`}
+                            >
                               Add detailed feedback
                             </Link>
                           </Button>
@@ -522,7 +598,9 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
                     {!rating && !isSelected && (
                       <div className="pt-4 border-t">
                         <Button asChild variant="outline" className="w-full">
-                          <Link href={`/projects/${projectId}/outputs/${output.id}/rate`}>
+                          <Link
+                            href={`/projects/${projectId}/outputs/${output.id}/rate`}
+                          >
                             <Star className="mr-2 h-4 w-4" />
                             Rate this output
                           </Link>
@@ -532,10 +610,19 @@ export function OutputsList({ projectId, scenarios }: OutputsListProps) {
 
                     {rating && isCarriedForward && (
                       <div className="pt-4 border-t">
-                        <Button asChild variant="outline" className="w-full" size="sm">
-                          <Link href={`/projects/${projectId}/outputs/${output.id}/rate`}>
+                        <Button
+                          asChild
+                          variant="outline"
+                          className="w-full"
+                          size="sm"
+                        >
+                          <Link
+                            href={`/projects/${projectId}/outputs/${output.id}/rate`}
+                          >
                             <Star className="mr-2 h-4 w-4" />
-                            {needsReview ? 'Review & update rating' : 'Update rating'}
+                            {needsReview
+                              ? "Review & update rating"
+                              : "Update rating"}
                           </Link>
                         </Button>
                       </div>

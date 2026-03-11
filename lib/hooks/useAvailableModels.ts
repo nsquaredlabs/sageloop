@@ -30,7 +30,6 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import type { SubscriptionPlan } from "@/lib/ai/default-models";
 
 export interface ModelInfo {
   id: string;
@@ -40,32 +39,26 @@ export interface ModelInfo {
 }
 
 export interface UseAvailableModelsResult {
-  /** List of models available to the user based on their subscription plan */
+  /** List of all available models */
   models: ModelInfo[];
-  /** The recommended default model for the user's subscription tier */
+  /** The recommended default model */
   defaultModel: string;
-  /** The user's current subscription plan */
-  userPlan: SubscriptionPlan;
+  /** The user's plan - always 'unlimited' for open-source */
+  userPlan: "unlimited";
   /** Whether the models are currently being fetched */
   isLoading: boolean;
   /** Error message if fetch failed */
   error: string | null;
-  /** Manually refetch models (e.g., after plan upgrade) */
+  /** Manually refetch models */
   refetch: () => Promise<void>;
 }
 
 /**
- * Fetches available AI models based on user's subscription plan
- *
- * Uses the /api/models endpoint which returns models filtered by
- * the user's subscription tier (free, pro, team, enterprise).
- *
- * @returns Object with models, defaultModel, userPlan, loading state, and error
+ * Fetches available AI models from the /api/models endpoint.
  */
 export function useAvailableModels(): UseAvailableModelsResult {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [defaultModel, setDefaultModel] = useState<string>("");
-  const [userPlan, setUserPlan] = useState<SubscriptionPlan>("free");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,21 +77,17 @@ export function useAvailableModels(): UseAvailableModelsResult {
       const data = await response.json();
 
       setModels(data.models || []);
-      setDefaultModel(data.defaultModel || "");
-      setUserPlan(data.userPlan || "free");
+      setDefaultModel(data.defaultModel || "gpt-4o-mini");
     } catch (err) {
       console.error("Failed to fetch models:", err);
       setError(err instanceof Error ? err.message : "Failed to fetch models");
-      // Set fallback values for free tier
       setModels([]);
-      setDefaultModel("gpt-5-nano");
-      setUserPlan("free");
+      setDefaultModel("gpt-4o-mini");
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  // Fetch models on mount
   useEffect(() => {
     fetchModels();
   }, [fetchModels]);
@@ -106,7 +95,7 @@ export function useAvailableModels(): UseAvailableModelsResult {
   return {
     models,
     defaultModel,
-    userPlan,
+    userPlan: "unlimited",
     isLoading,
     error,
     refetch: fetchModels,

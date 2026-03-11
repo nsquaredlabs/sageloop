@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase";
+import { getDb, schema } from "@/lib/db";
+import { eq } from "drizzle-orm";
 import { parseId } from "@/lib/utils";
 import { generateCompletion } from "@/lib/ai/generation";
 import { SYSTEM_MODEL_CONFIG } from "@/lib/ai/system-model-config";
@@ -16,17 +17,9 @@ interface FixCluster {
 
 export async function POST(request: Request, { params }: RouteParams) {
   try {
-    const supabase = await createServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { id: projectIdString } = await params;
     const projectId = parseId(projectIdString);
+    const db = getDb();
     const body = await request.json();
     const { currentPrompt, clusters } = body as {
       currentPrompt: string;
@@ -40,14 +33,14 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
     }
 
-    // Verify project access
-    const { data: project, error: projectError } = await supabase
-      .from("projects")
-      .select("id")
-      .eq("id", projectId)
-      .single();
+    // Verify project exists
+    const project = db
+      .select({ id: schema.projects.id })
+      .from(schema.projects)
+      .where(eq(schema.projects.id, projectId))
+      .get();
 
-    if (projectError || !project) {
+    if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 

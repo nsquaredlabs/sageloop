@@ -1,18 +1,10 @@
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase";
+import { getDb, schema } from "@/lib/db";
+import { desc } from "drizzle-orm";
 import { validateSystemPrompt } from "@/lib/security/prompt-validation";
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const body = await request.json();
     const { name, description, model_config } = body;
 
@@ -50,80 +42,34 @@ export async function POST(request: Request) {
       // Log medium-risk prompts for monitoring
       if (validation.risk === "medium") {
         console.warn("[SECURITY] Medium-risk prompt detected:", {
-          user_id: user.id,
           operation: "create_project",
           flags: validation.flags,
         });
       }
     }
 
-    // Get user's first workbench
-    const { data: userWorkbenches } = await supabase
-      .from("user_workbenches")
-      .select("workbench_id")
-      .limit(1)
-      .single();
-
-    if (!userWorkbenches) {
-      return NextResponse.json(
-        { error: "No workbench found for user" },
-        { status: 400 },
-      );
-    }
-
-    // Insert project into database
-    const { data, error } = await supabase
-      .from("projects")
-      .insert({
+    const db = getDb();
+    const data = db
+      .insert(schema.projects)
+      .values({
         name,
         description: description || null,
-        model_config,
-        workbench_id: userWorkbenches.workbench_id,
-        created_by: user.id,
+        model_config: JSON.stringify(model_config),
       })
-      .select()
-      .single();
+      .returning()
+      .get();
 
-    if (error) {
-      console.error("Supabase error:", error);
-
-      // Handle duplicate key errors gracefully
-      if (error.code === "23505") {
-        // Unique constraint violation - likely a race condition or sequence issue
-        // Try once more - the identity sequence should auto-increment
-        const { data: retryData, error: retryError } = await supabase
-          .from("projects")
-          .insert({
-            name,
-            description: description || null,
-            model_config,
-            workbench_id: userWorkbenches.workbench_id,
-            created_by: user.id,
-          })
-          .select()
-          .single();
-
-        if (retryError) {
-          console.error("Retry also failed:", retryError);
-          return NextResponse.json(
-            {
-              error: "Failed to create project. Please try again.",
-              code: retryError.code,
-            },
-            { status: 500 },
-          );
-        }
-
-        return NextResponse.json({ data: retryData }, { status: 201 });
-      }
-
-      return NextResponse.json(
-        { error: "Failed to create project" },
-        { status: 500 },
-      );
-    }
-
-    return NextResponse.json({ data }, { status: 201 });
+    return NextResponse.json(
+      {
+        data: {
+          ...data,
+          model_config: data.model_config
+            ? JSON.parse(data.model_config)
+            : null,
+        },
+      },
+      { status: 201 },
+    );
   } catch (error) {
     console.error("API error:", error);
     return NextResponse.json(
@@ -135,28 +81,17 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
-    const supabase = await createServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const db = getDb();
+    const rows = db
+      .select()
+      .from(schema.projects)
+      .orderBy(desc(schema.projects.created_at))
+      .all();
 
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // RLS automatically filters by user's workbenches
-    const { data, error } = await supabase
-      .from("projects")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Supabase error:", error);
-      return NextResponse.json(
-        { error: "Failed to fetch projects" },
-        { status: 500 },
-      );
-    }
+    const data = rows.map((p) => ({
+      ...p,
+      model_config: p.model_config ? JSON.parse(p.model_config) : null,
+    }));
 
     return NextResponse.json({ data });
   } catch (error) {

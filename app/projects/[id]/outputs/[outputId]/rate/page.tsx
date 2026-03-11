@@ -1,12 +1,19 @@
-import { createServerClient } from '@/lib/supabase';
-import { parseId } from '@/lib/utils';
-import { notFound } from 'next/navigation';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { ArrowLeft } from 'lucide-react';
-import { RatingForm } from '@/components/rating-form';
+import { getDb, schema } from "@/lib/db";
+import { eq } from "drizzle-orm";
+import { parseId } from "@/lib/utils";
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft } from "lucide-react";
+import { RatingForm } from "@/components/rating-form";
 
 interface RateOutputPageProps {
   params: Promise<{ id: string; outputId: string }>;
@@ -17,34 +24,31 @@ export default async function RateOutputPage({ params }: RateOutputPageProps) {
   const projectId = parseId(projectIdString);
   const outputId = parseId(outputIdString);
 
-  // Use authenticated server client - enforces RLS
-  const supabase = await createServerClient();
+  const db = getDb();
 
-  // Fetch output with scenario and project info
-  const { data: output, error: outputError } = await supabase
-    .from('outputs')
-    .select(`
-      *,
-      scenario:scenarios (
-        id,
-        input_text,
-        order,
-        project:projects (
-          id,
-          name
-        )
-      )
-    `)
-    .eq('id', outputId)
-    .single();
+  const output = db
+    .select()
+    .from(schema.outputs)
+    .where(eq(schema.outputs.id, outputId))
+    .get();
 
-  if (outputError || !output || output.scenario?.project?.id !== projectId) {
-    notFound();
-  }
+  if (!output) notFound();
 
-  // TypeScript doesn't know that notFound() ensures these are non-null
-  const scenario = output.scenario!;
-  const project = scenario.project!;
+  const scenario = db
+    .select()
+    .from(schema.scenarios)
+    .where(eq(schema.scenarios.id, output.scenario_id))
+    .get();
+
+  if (!scenario) notFound();
+
+  const project = db
+    .select()
+    .from(schema.projects)
+    .where(eq(schema.projects.id, scenario.project_id))
+    .get();
+
+  if (!project || project.id !== projectId) notFound();
 
   return (
     <div className="min-h-screen bg-background">
@@ -66,7 +70,8 @@ export default async function RateOutputPage({ params }: RateOutputPageProps) {
               </Badge>
             </div>
             <p className="text-muted-foreground mt-2">
-              Evaluating output for <span className="font-medium">{project.name}</span>
+              Evaluating output for{" "}
+              <span className="font-medium">{project.name}</span>
             </p>
           </div>
         </div>
@@ -99,7 +104,8 @@ export default async function RateOutputPage({ params }: RateOutputPageProps) {
           <CardHeader>
             <CardTitle>Your Evaluation</CardTitle>
             <CardDescription>
-              Rate this output and provide feedback to help improve the AI's behavior
+              Rate this output and provide feedback to help improve the
+              AI&apos;s behavior
             </CardDescription>
           </CardHeader>
           <CardContent>

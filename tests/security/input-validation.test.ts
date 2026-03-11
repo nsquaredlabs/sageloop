@@ -26,7 +26,7 @@ describe("Input Validation Security (CWE-20)", () => {
       for (const input of maliciousInputs) {
         const result = createScenarioSchema.safeParse({ input_text: input });
         // Should either reject or safely handle
-        expect(result.success).toBe(true); // Zod accepts it, but Supabase query builder handles safely
+        expect(result.success).toBe(true); // Zod accepts it, but parameterized queries handle it safely
       }
     });
 

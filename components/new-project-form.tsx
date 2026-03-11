@@ -18,15 +18,7 @@ import {
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { useAvailableModels } from "@/lib/hooks/useAvailableModels";
 
-interface NewProjectFormProps {
-  configured: {
-    openai: boolean;
-    anthropic: boolean;
-  };
-  workbenchId?: string;
-}
-
-export function NewProjectForm({}: NewProjectFormProps) {
+export function NewProjectForm() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

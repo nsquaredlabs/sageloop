@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase";
+import { getDb, schema } from "@/lib/db";
+import { eq } from "drizzle-orm";
 import { parseId } from "@/lib/utils";
 import { validateSystemPrompt } from "@/lib/security/prompt-validation";
 
@@ -9,15 +10,6 @@ interface RouteParams {
 
 export async function PATCH(request: Request, { params }: RouteParams) {
   try {
-    const supabase = await createServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { id: projectIdString } = await params;
     const projectId = parseId(projectIdString);
     const body = await request.json();
@@ -50,7 +42,6 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       // Log medium-risk prompts for monitoring
       if (validation.risk === "medium") {
         console.warn("[SECURITY] Medium-risk prompt detected:", {
-          user_id: user.id,
           project_id: projectId,
           operation: "update_project",
           flags: validation.flags,
@@ -58,25 +49,27 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       }
     }
 
-    // Update project (RLS ensures user has access)
-    const { data: project, error } = await supabase
-      .from("projects")
-      .update({
+    const db = getDb();
+    const row = db
+      .update(schema.projects)
+      .set({
         name,
         description,
-        model_config,
+        model_config: JSON.stringify(model_config),
+        updated_at: new Date().toISOString(),
       })
-      .eq("id", projectId)
-      .select()
-      .single();
+      .where(eq(schema.projects.id, projectId))
+      .returning()
+      .get();
 
-    if (error) {
-      console.error("Supabase error:", error);
-      return NextResponse.json(
-        { error: "Failed to update project" },
-        { status: 500 },
-      );
+    if (!row) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
+
+    const project = {
+      ...row,
+      model_config: row.model_config ? JSON.parse(row.model_config) : null,
+    };
 
     return NextResponse.json({ data: project });
   } catch (error) {

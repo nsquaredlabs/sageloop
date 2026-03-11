@@ -1,5 +1,6 @@
-import { redirect } from "next/navigation";
-import { createServerClient } from "@/lib/supabase";
+"use client";
+
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -7,93 +8,180 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { ApiKeyForm } from "@/components/api-key-form";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Info } from "lucide-react";
+import { Info, Check, Loader2, Eye, EyeOff } from "lucide-react";
+import { toast } from "sonner";
 
-export const metadata = {
-  title: "API Keys | Settings | Sageloop",
-  description: "Manage your API keys",
-};
+interface ConfigState {
+  openai_api_key: string;
+  anthropic_api_key: string;
+  default_model: string;
+  has_openai: boolean;
+  has_anthropic: boolean;
+}
 
-export default async function ApiKeysPage() {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+export default function ApiKeysPage() {
+  const [config, setConfig] = useState<ConfigState | null>(null);
+  const [openaiKey, setOpenaiKey] = useState("");
+  const [anthropicKey, setAnthropicKey] = useState("");
+  const [showOpenai, setShowOpenai] = useState(false);
+  const [showAnthropic, setShowAnthropic] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  if (!user) {
-    redirect("/auth/login");
-  }
+  useEffect(() => {
+    fetch("/api/settings/config")
+      .then((r) => r.json())
+      .then(setConfig)
+      .catch(() => toast.error("Failed to load config"));
+  }, []);
 
-  // Get user's workbench
-  const { data: userWorkbenches } = await supabase
-    .from("user_workbenches")
-    .select("workbench_id")
-    .eq("user_id", user.id)
-    .limit(1)
-    .single();
-
-  if (!userWorkbenches) {
-    return (
-      <div>
-        <p>No workbench found.</p>
-      </div>
-    );
-  }
-
-  const workbenchId = userWorkbenches.workbench_id as string;
-
-  // Check subscription plan - BYOK only available for Enterprise plans
-  const { data: subscriptionData } = await supabase.rpc(
-    "get_workbench_subscription",
-    { workbench_uuid: workbenchId },
-  );
-
-  const subscription = subscriptionData?.[0];
-
-  // Redirect non-Enterprise users to subscription page
-  if (subscription?.plan_id !== "enterprise") {
-    redirect("/settings/subscription?enterprise_required=true");
-  }
-
-  // Check which API keys are configured
-  const { data: configured } = (await supabase.rpc("check_workbench_api_keys", {
-    workbench_uuid: workbenchId,
-  })) as {
-    data: { openai?: boolean; anthropic?: boolean } | null;
+  const handleSave = async () => {
+    if (!openaiKey && !anthropicKey) {
+      toast.error("Please enter at least one API key");
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const response = await fetch("/api/settings/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(openaiKey && { openai_api_key: openaiKey }),
+          ...(anthropicKey && { anthropic_api_key: anthropicKey }),
+        }),
+      });
+      if (!response.ok) throw new Error("Failed to save");
+      toast.success("API keys saved successfully");
+      setOpenaiKey("");
+      setAnthropicKey("");
+      // Refresh config display
+      const updated = await fetch("/api/settings/config").then((r) => r.json());
+      setConfig(updated);
+    } catch {
+      toast.error("Failed to save API keys");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Phase 1 Notice */}
+    <div className="container mx-auto py-8 max-w-2xl space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">API Keys</h1>
+        <p className="text-muted-foreground mt-2">
+          Configure your AI provider API keys for local use.
+        </p>
+      </div>
+
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          <strong>Phase 1 - Free Tier:</strong> All users currently use system
-          API keys with quota limits. BYOK (Bring Your Own Keys) will be
-          available with paid plans in Phase 2.
+          Your API keys are stored locally in <code>sageloop.config.yaml</code>{" "}
+          and never leave your machine.
         </AlertDescription>
       </Alert>
 
-      {/* API Keys Configuration */}
       <Card>
         <CardHeader>
           <CardTitle>API Keys</CardTitle>
           <CardDescription>
-            Configure your own API keys for AI generation and pattern
-            extraction. Your keys are encrypted and stored securely.
+            Configure your OpenAI and Anthropic API keys for AI generation.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <ApiKeyForm
-            workbenchId={workbenchId}
-            initialConfigured={configured || {}}
-          />
+        <CardContent className="space-y-6">
+          {/* OpenAI */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="openai-key">OpenAI API Key</Label>
+              {config?.has_openai && (
+                <span className="text-xs text-green-600 flex items-center gap-1">
+                  <Check className="h-3 w-3" />
+                  Configured ({config.openai_api_key})
+                </span>
+              )}
+            </div>
+            <div className="relative">
+              <Input
+                id="openai-key"
+                type={showOpenai ? "text" : "password"}
+                placeholder={
+                  config?.has_openai ? "Enter new key to replace..." : "sk-..."
+                }
+                value={openaiKey}
+                onChange={(e) => setOpenaiKey(e.target.value)}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowOpenai(!showOpenai)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showOpenai ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Anthropic */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="anthropic-key">Claude API Key (Anthropic)</Label>
+              {config?.has_anthropic && (
+                <span className="text-xs text-green-600 flex items-center gap-1">
+                  <Check className="h-3 w-3" />
+                  Configured ({config.anthropic_api_key})
+                </span>
+              )}
+            </div>
+            <div className="relative">
+              <Input
+                id="anthropic-key"
+                type={showAnthropic ? "text" : "password"}
+                placeholder={
+                  config?.has_anthropic
+                    ? "Enter new key to replace..."
+                    : "sk-ant-..."
+                }
+                value={anthropicKey}
+                onChange={(e) => setAnthropicKey(e.target.value)}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowAnthropic(!showAnthropic)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showAnthropic ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          <Button
+            onClick={handleSave}
+            disabled={isSaving || (!openaiKey && !anthropicKey)}
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save API Keys"
+            )}
+          </Button>
         </CardContent>
       </Card>
 
-      {/* Help Section */}
       <Card>
         <CardHeader>
           <CardTitle>Where to find API keys</CardTitle>

@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
-import { parseId } from '@/lib/utils';
+import { NextResponse } from "next/server";
+import { getDb, schema } from "@/lib/db";
+import { eq, desc, asc } from "drizzle-orm";
+import { parseId } from "@/lib/utils";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -8,16 +9,6 @@ interface RouteParams {
 
 export async function POST(request: Request, { params }: RouteParams) {
   try {
-    const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
     const { id: projectIdString } = await params;
     const projectId = parseId(projectIdString);
     const body = await request.json();
@@ -26,86 +17,63 @@ export async function POST(request: Request, { params }: RouteParams) {
     // Validate required fields
     if (!input_text) {
       return NextResponse.json(
-        { error: 'input_text is required' },
-        { status: 400 }
+        { error: "input_text is required" },
+        { status: 400 },
       );
     }
+
+    const db = getDb();
 
     // Get the current max order for this project
-    const { data: maxOrderData } = await supabase
-      .from('scenarios')
-      .select('order')
-      .eq('project_id', projectId)
-      .order('order', { ascending: false })
+    const maxOrderRow = db
+      .select()
+      .from(schema.scenarios)
+      .where(eq(schema.scenarios.project_id, projectId))
+      .orderBy(desc(schema.scenarios.order))
       .limit(1)
-      .single();
+      .get();
 
-    const nextOrder = maxOrderData ? maxOrderData.order + 1 : 1;
+    const nextOrder = maxOrderRow ? maxOrderRow.order + 1 : 1;
 
-    // Insert scenario into database
-    const { data, error } = await supabase
-      .from('scenarios')
-      .insert({
+    const data = db
+      .insert(schema.scenarios)
+      .values({
         project_id: projectId,
         input_text,
-        order: nextOrder
+        order: nextOrder,
       })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Supabase error:', error);
-      return NextResponse.json(
-        { error: 'Failed to create scenario' },
-        { status: 500 }
-      );
-    }
+      .returning()
+      .get();
 
     return NextResponse.json({ data }, { status: 201 });
   } catch (error) {
-    console.error('API error:', error);
+    console.error("API error:", error);
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      { error: "Internal server error" },
+      { status: 500 },
     );
   }
 }
 
-export async function GET(request: Request, { params }: RouteParams) {
+export async function GET(_request: Request, { params }: RouteParams) {
   try {
-    const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
     const { id: projectIdString } = await params;
     const projectId = parseId(projectIdString);
 
-    const { data, error } = await supabase
-      .from('scenarios')
-      .select('*')
-      .eq('project_id', projectId)
-      .order('order', { ascending: true });
-
-    if (error) {
-      console.error('Supabase error:', error);
-      return NextResponse.json(
-        { error: 'Failed to fetch scenarios' },
-        { status: 500 }
-      );
-    }
+    const db = getDb();
+    const data = db
+      .select()
+      .from(schema.scenarios)
+      .where(eq(schema.scenarios.project_id, projectId))
+      .orderBy(asc(schema.scenarios.order))
+      .all();
 
     return NextResponse.json({ data });
   } catch (error) {
-    console.error('API error:', error);
+    console.error("API error:", error);
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      { error: "Internal server error" },
+      { status: 500 },
     );
   }
 }

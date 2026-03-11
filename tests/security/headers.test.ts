@@ -47,11 +47,10 @@ describe("Content Security Policy", () => {
       expect(csp).toContain("object-src 'none'");
     });
 
-    it("should allow connections to API endpoints", () => {
+    it("should allow connections to AI API endpoints", () => {
       const csp = buildCSPHeader(contentSecurityPolicy);
 
       expect(csp).toContain("connect-src");
-      expect(csp).toContain("https://*.supabase.co");
       expect(csp).toContain("https://api.openai.com");
       expect(csp).toContain("https://api.anthropic.com");
     });

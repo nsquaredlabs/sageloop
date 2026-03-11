@@ -1,4 +1,5 @@
-import { createServerClient } from "@/lib/supabase";
+import { getDb, schema } from "@/lib/db";
+import { eq, asc } from "drizzle-orm";
 import { parseId } from "@/lib/utils";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -22,27 +23,28 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
   const { id: idString } = await params;
   const id = parseId(idString);
 
-  // Use authenticated server client - enforces RLS
-  const supabase = await createServerClient();
+  const db = getDb();
 
-  // Fetch project with scenarios
-  const { data: project, error: projectError } = await supabase
-    .from("projects")
-    .select("*")
-    .eq("id", id)
-    .single();
+  const project = db
+    .select()
+    .from(schema.projects)
+    .where(eq(schema.projects.id, id))
+    .get();
 
-  if (projectError || !project) {
+  if (!project) {
     notFound();
   }
 
-  const { data: scenarios } = await supabase
-    .from("scenarios")
-    .select("*")
-    .eq("project_id", id)
-    .order("order", { ascending: true });
+  const scenarios = db
+    .select()
+    .from(schema.scenarios)
+    .where(eq(schema.scenarios.project_id, id))
+    .orderBy(asc(schema.scenarios.order))
+    .all();
 
-  const modelConfig = project.model_config as {
+  const modelConfig = (
+    project.model_config ? JSON.parse(project.model_config) : {}
+  ) as {
     model?: string;
     system_prompt?: string;
     variables?: Record<string, string>;
@@ -113,8 +115,8 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
             <div>
               <h2 className="text-2xl font-bold">Scenarios</h2>
               <p className="text-sm text-muted-foreground mt-1">
-                {scenarios?.length || 0} test scenario
-                {scenarios?.length !== 1 ? "s" : ""}
+                {scenarios.length} test scenario
+                {scenarios.length !== 1 ? "s" : ""}
               </p>
             </div>
             <div className="flex gap-2">
@@ -123,7 +125,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
             </div>
           </div>
 
-          {scenarios && scenarios.length > 0 ? (
+          {scenarios.length > 0 ? (
             <div className="space-y-3">
               {scenarios.map((scenario, index) => (
                 <Card
@@ -174,7 +176,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
         </div>
 
         {/* Action Buttons */}
-        {scenarios && scenarios.length > 0 && (
+        {scenarios.length > 0 && (
           <GenerateOutputsButton
             projectId={String(id)}
             scenarioCount={scenarios.length}

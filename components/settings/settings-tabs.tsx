@@ -4,56 +4,26 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-interface SettingsTabsProps {
-  isEnterprise: boolean;
-}
-
-const ALL_TABS = [
-  {
-    name: "Subscription",
-    href: "/settings/subscription",
-    description: "Plan, usage, and billing",
-    requiresEnterprise: false, // Always visible
-  },
+const TABS = [
   {
     name: "API Keys",
     href: "/settings/api-keys",
-    description: "Bring your own keys",
-    requiresEnterprise: true, // Only for Enterprise plans (BYOK)
-  },
-  {
-    name: "Connected Accounts",
-    href: "/settings/connected-accounts",
-    description: "OAuth providers",
-    requiresEnterprise: false, // Always visible
+    description: "Configure AI provider keys",
   },
   {
     name: "Account",
     href: "/settings/account",
     description: "Preferences and settings",
-    requiresEnterprise: false, // Always visible
   },
-  // Phase 2: Team management
-  // {
-  //   name: 'Team',
-  //   href: '/settings/team',
-  //   description: 'Members and permissions',
-  //   requiresEnterprise: true,
-  // },
 ];
 
-export function SettingsTabs({ isEnterprise }: SettingsTabsProps) {
+export function SettingsTabs() {
   const pathname = usePathname();
-
-  // Filter tabs based on subscription plan - BYOK only for Enterprise
-  const tabs = ALL_TABS.filter(
-    (tab) => !tab.requiresEnterprise || isEnterprise,
-  );
 
   return (
     <div className="border-b">
       <nav className="-mb-px flex space-x-8" aria-label="Settings tabs">
-        {tabs.map((tab) => {
+        {TABS.map((tab) => {
           const isActive = pathname === tab.href;
 
           return (

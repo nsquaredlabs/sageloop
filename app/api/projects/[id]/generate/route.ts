@@ -1,20 +1,23 @@
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase";
+import { getDb, schema } from "@/lib/db";
+import { eq, asc } from "drizzle-orm";
 import { parseId } from "@/lib/utils";
 import { resolveProvider } from "@/lib/ai/provider-resolver";
-import {
-  checkQuotaAvailable,
-  getUsageHeaders,
-} from "@/lib/api/quota-middleware";
-import { getModelTier } from "@/lib/ai/model-tiers";
+import { generateCompletion } from "@/lib/ai/generation";
+import { getConfig } from "@/lib/config";
 import { DEFAULT_MODEL_FALLBACK } from "@/lib/ai/default-models";
-import { handleApiError } from "@/lib/api/errors";
 import {
   validateSystemPrompt,
   validateScenarioInput,
 } from "@/lib/security/prompt-validation";
-import type { ModelConfig, UserApiKeys } from "@/types/database";
-import type { EnqueueGenerationResponse } from "@/types/api";
+import {
+  createJob,
+  enqueue,
+  addJobResult,
+  updateJob,
+} from "@/lib/queue/generation-queue";
+import type { ModelConfig } from "@/types/database";
+import { randomUUID } from "crypto";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -22,66 +25,39 @@ interface RouteParams {
 
 export async function POST(_request: Request, { params }: RouteParams) {
   try {
-    const supabase = await createServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { id: projectIdString } = await params;
     const projectId = parseId(projectIdString);
+    const db = getDb();
 
-    // Fetch project details (RLS ensures user has access)
-    const { data: project, error: projectError } = await supabase
-      .from("projects")
-      .select("*, workbench_id")
-      .eq("id", projectId)
-      .single();
-
-    if (projectError || !project) {
+    // Fetch project
+    const project = db
+      .select()
+      .from(schema.projects)
+      .where(eq(schema.projects.id, projectId))
+      .get();
+    if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
-    // Fetch workbench API keys (for Enterprise BYOK)
-    const { data: apiKeys, error: keysError } = (await supabase.rpc(
-      "get_workbench_api_keys",
-      { workbench_uuid: project.workbench_id ?? "" },
-    )) as {
-      data: UserApiKeys | null;
-      error: unknown;
-    };
-
-    if (keysError) {
-      console.error("Error fetching API keys:", keysError);
-      return NextResponse.json(
-        { error: "Failed to fetch API keys" },
-        { status: 500 },
-      );
-    }
-
-    // Fetch all scenarios for this project
-    const { data: scenarios, error: scenariosError } = await supabase
-      .from("scenarios")
-      .select("*")
-      .eq("project_id", projectId)
-      .order("order", { ascending: true });
-
-    if (scenariosError || !scenarios || scenarios.length === 0) {
+    // Fetch scenarios
+    const scenarios = db
+      .select()
+      .from(schema.scenarios)
+      .where(eq(schema.scenarios.project_id, projectId))
+      .orderBy(asc(schema.scenarios.order))
+      .all();
+    if (!scenarios || scenarios.length === 0) {
       return NextResponse.json(
         { error: "No scenarios found for this project" },
         { status: 400 },
       );
     }
 
-    const modelConfig = project.model_config as unknown as ModelConfig;
+    const modelConfig = JSON.parse(project.model_config || "{}") as ModelConfig;
 
-    // Validate system prompt for injection attempts
+    // Validate system prompt
     if (modelConfig.system_prompt) {
       const validation = validateSystemPrompt(modelConfig.system_prompt);
-
       if (!validation.isValid) {
         return NextResponse.json(
           {
@@ -92,10 +68,8 @@ export async function POST(_request: Request, { params }: RouteParams) {
           { status: 400 },
         );
       }
-
       if (validation.risk === "medium") {
         console.warn("[SECURITY] Medium-risk prompt detected:", {
-          user_id: user.id,
           project_id: projectId,
           operation: "generate_outputs",
           flags: validation.flags,
@@ -103,17 +77,13 @@ export async function POST(_request: Request, { params }: RouteParams) {
       }
     }
 
-    // Validate scenario inputs for injection attempts
+    // Validate scenario inputs
     const invalidScenarios = scenarios
-      .map((scenario) => {
-        const validation = validateScenarioInput(scenario.input_text);
-        return {
-          scenario_id: scenario.id,
-          validation,
-        };
-      })
-      .filter((result) => !result.validation.isValid);
-
+      .map((s) => ({
+        scenario_id: s.id,
+        validation: validateScenarioInput(s.input_text),
+      }))
+      .filter((r) => !r.validation.isValid);
     if (invalidScenarios.length > 0) {
       return NextResponse.json(
         {
@@ -128,69 +98,70 @@ export async function POST(_request: Request, { params }: RouteParams) {
       );
     }
 
-    // Determine which provider and model to use
-    const { modelName } = resolveProvider(
+    // Get API keys from config
+    const config = getConfig();
+    const userKeys = {
+      openai: config.openai_api_key,
+      anthropic: config.anthropic_api_key,
+    };
+    const { provider, modelName, apiKey } = resolveProvider(
       modelConfig.model || DEFAULT_MODEL_FALLBACK,
-      apiKeys,
+      userKeys,
     );
 
-    // CHECK QUOTA: Ensure workbench has quota for the number of outputs to generate
-    const scenarioCount = scenarios.length;
+    // Create job and enqueue generation
+    const jobId = randomUUID();
+    createJob(jobId, scenarios.length);
 
-    if (!project.workbench_id) {
-      return NextResponse.json(
-        { error: "Project has no associated workbench" },
-        { status: 500 },
-      );
+    // Enqueue each scenario for processing
+    for (const scenario of scenarios) {
+      enqueue(async () => {
+        try {
+          updateJob(jobId, { status: "processing" });
+          const result = await generateCompletion({
+            provider,
+            model: modelName,
+            systemPrompt: modelConfig.system_prompt,
+            userMessage: scenario.input_text,
+            apiKey,
+            variables: modelConfig.variables,
+          });
+
+          // Save output to DB
+          const output = db
+            .insert(schema.outputs)
+            .values({
+              scenario_id: scenario.id,
+              output_text: result.text,
+              model_snapshot: JSON.stringify({
+                model: modelName,
+                system_prompt: modelConfig.system_prompt,
+                variables: modelConfig.variables,
+                ...result.usage,
+              }),
+            })
+            .returning()
+            .get();
+
+          addJobResult(jobId, { scenarioId: scenario.id, outputId: output.id });
+        } catch (error) {
+          const errMsg = error instanceof Error ? error.message : String(error);
+          addJobResult(jobId, { scenarioId: scenario.id, error: errMsg });
+        }
+      });
     }
 
-    const subscription = await checkQuotaAvailable(
-      supabase,
-      project.workbench_id,
-      modelName,
-      scenarioCount,
-    );
-
-    const modelTier = getModelTier(modelName);
-
-    // Enqueue the generation job instead of processing synchronously
-    // Note: Using type assertion since the RPC function is defined in the migration
-    // but not yet in the generated Supabase types
-    const { data: jobId, error: enqueueError } = (await supabase.rpc(
-      "enqueue_generation_job" as "get_workbench_subscription",
-      {
-        p_project_id: projectId,
-        p_workbench_id: project.workbench_id,
-        p_model_config: modelConfig,
-        p_scenario_count: scenarioCount,
-        // For Enterprise BYOK, pass the API keys; for standard tiers, null
-        p_api_keys_snapshot: apiKeys ? apiKeys : null,
-      } as unknown as { workbench_uuid: string },
-    )) as { data: string | null; error: unknown };
-
-    if (enqueueError || !jobId) {
-      console.error("Error enqueueing generation job:", enqueueError);
-      return NextResponse.json(
-        { error: "Failed to start generation job" },
-        { status: 500 },
-      );
-    }
-
-    // Note: Edge Function is triggered by the job status endpoint when frontend polls
-    // This avoids the "EarlyDrop" issue from fire-and-forget HTTP calls
-
-    const response: EnqueueGenerationResponse = {
+    return NextResponse.json({
       success: true,
       job_id: jobId,
       status: "pending",
-      total_scenarios: scenarioCount,
-    };
-
-    // Add quota usage headers to response
-    const headers = getUsageHeaders(subscription, modelTier);
-
-    return NextResponse.json(response, { headers });
+      total_scenarios: scenarios.length,
+    });
   } catch (error) {
-    return handleApiError(error);
+    console.error("API error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

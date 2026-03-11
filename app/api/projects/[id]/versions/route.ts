@@ -1,8 +1,9 @@
-import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
-import { parseId } from '@/lib/utils';
-import type { ModelConfig } from '@/types/database';
-import type { GetVersionsResponse } from '@/types/api';
+import { NextResponse } from "next/server";
+import { getDb, schema } from "@/lib/db";
+import { eq, desc } from "drizzle-orm";
+import { parseId } from "@/lib/utils";
+import type { ModelConfig } from "@/types/database";
+import type { GetVersionsResponse } from "@/types/api";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -10,71 +11,72 @@ interface RouteParams {
 
 export async function GET(_request: Request, { params }: RouteParams) {
   try {
-    const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
     const { id: projectIdString } = await params;
     const projectId = parseId(projectIdString);
 
-    // Fetch project details (RLS ensures user has access)
-    const { data: project, error: projectError } = await supabase
-      .from('projects')
-      .select('*')
-      .eq('id', projectId)
-      .single();
+    const db = getDb();
 
-    if (projectError || !project) {
-      return NextResponse.json(
-        { error: 'Project not found' },
-        { status: 404 }
-      );
+    // Fetch project details
+    const project = db
+      .select()
+      .from(schema.projects)
+      .where(eq(schema.projects.id, projectId))
+      .get();
+
+    if (!project) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
-    // Fetch all prompt iterations for this project
-    const { data: iterations, error: iterationsError } = await supabase
-      .from('prompt_iterations')
-      .select('*')
-      .eq('project_id', projectId)
-      .order('version', { ascending: false });
+    // Fetch all prompt versions for this project
+    const iterations = db
+      .select()
+      .from(schema.prompt_versions)
+      .where(eq(schema.prompt_versions.project_id, projectId))
+      .orderBy(desc(schema.prompt_versions.version_number))
+      .all();
 
-    if (iterationsError) {
-      console.error('Failed to fetch iterations:', iterationsError);
-      return NextResponse.json(
-        { error: 'Failed to fetch version history' },
-        { status: 500 }
-      );
-    }
+    const modelConfig = project.model_config
+      ? (JSON.parse(project.model_config) as ModelConfig)
+      : ({} as ModelConfig);
 
-    // Add current version if not in iterations
-    const modelConfig = project.model_config as unknown as ModelConfig;
-    const currentVersion = project.prompt_version || 1;
-    const currentSystemPrompt = modelConfig.system_prompt || '';
+    const currentVersion = 1;
+    const currentSystemPrompt = modelConfig.system_prompt || "";
+
+    // Map DB rows to API shape (version_number -> version)
+    const mappedIterations = iterations.map((i) => ({
+      id: i.id,
+      project_id: i.project_id,
+      version: i.version_number,
+      system_prompt: i.system_prompt || "",
+      parent_version: i.parent_version,
+      improvement_note: null as string | null,
+      success_rate_before: i.success_rate_before,
+      success_rate_after: i.success_rate_after,
+      created_at: i.created_at,
+    }));
 
     // Check if current version is already in iterations
-    const hasCurrentVersion = iterations?.some(
-      (i) => i.version === currentVersion
+    const hasCurrentVersion = mappedIterations.some(
+      (i) => i.version === currentVersion,
     );
 
     const versions = [
-      ...(hasCurrentVersion ? [] : [{
-        id: -1,
-        project_id: projectId,
-        version: currentVersion,
-        system_prompt: currentSystemPrompt,
-        created_at: project.updated_at,
-        parent_version: currentVersion > 1 ? currentVersion - 1 : null,
-        improvement_note: 'Current version',
-        success_rate_before: null,
-        success_rate_after: null,
-      }]),
-      ...(iterations || []),
+      ...(hasCurrentVersion
+        ? []
+        : [
+            {
+              id: -1,
+              project_id: projectId,
+              version: currentVersion,
+              system_prompt: currentSystemPrompt,
+              created_at: project.updated_at,
+              parent_version: currentVersion > 1 ? currentVersion - 1 : null,
+              improvement_note: "Current version",
+              success_rate_before: null,
+              success_rate_after: null,
+            },
+          ]),
+      ...mappedIterations,
     ];
 
     const response: GetVersionsResponse = {
@@ -83,10 +85,10 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('API error:', error);
+    console.error("API error:", error);
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      { error: "Internal server error" },
+      { status: 500 },
     );
   }
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase";
+import { getDb, schema } from "@/lib/db";
+import { eq, inArray } from "drizzle-orm";
 import { parseId } from "@/lib/utils";
 import { generateCompletion } from "@/lib/ai/generation";
 import { SYSTEM_MODEL_CONFIG } from "@/lib/ai/system-model-config";
@@ -132,31 +133,23 @@ async function extractAndRepairJSON(
 
 export async function POST(request: Request, { params }: RouteParams) {
   try {
-    const supabase = await createServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { id: projectIdString } = await params;
     const projectId = parseId(projectIdString);
+    const db = getDb();
 
-    // Fetch project details (RLS ensures user has access)
-    const { data: project, error: projectError } = await supabase
-      .from("projects")
-      .select("*")
-      .eq("id", projectId)
-      .single();
+    // Fetch project
+    const project = db
+      .select()
+      .from(schema.projects)
+      .where(eq(schema.projects.id, projectId))
+      .get();
 
-    if (projectError || !project) {
+    if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
     // Get the system prompt from project config
-    const modelConfig = project.model_config as unknown as ModelConfig;
+    const modelConfig = JSON.parse(project.model_config || "{}") as ModelConfig;
     const systemPrompt = modelConfig.system_prompt || "";
 
     // Validate system prompt for injection attempts
@@ -174,35 +167,20 @@ export async function POST(request: Request, { params }: RouteParams) {
 
     if (validation.risk === "medium") {
       console.warn("[SECURITY] Medium-risk prompt detected:", {
-        user_id: user.id,
         project_id: projectId,
         operation: "extract_patterns",
         flags: validation.flags,
       });
     }
 
-    // Get the current prompt version
-    const currentVersion = project.prompt_version || 1;
+    // Fetch scenarios for this project
+    const scenarios = db
+      .select()
+      .from(schema.scenarios)
+      .where(eq(schema.scenarios.project_id, projectId))
+      .all();
 
-    // Fetch ALL rated outputs for the current prompt version
-    // This ensures we analyze the complete picture of the current prompt's performance
-    // IMPORTANT: Use two-step query pattern to avoid PostgREST nested filter limitation
-
-    // Step 1: Get scenario IDs for this project
-    const { data: scenarios, error: scenariosError } = await supabase
-      .from("scenarios")
-      .select("id")
-      .eq("project_id", projectId);
-
-    if (scenariosError) {
-      console.error("Error fetching scenarios:", scenariosError);
-      return NextResponse.json(
-        { error: "Failed to fetch scenarios" },
-        { status: 500 },
-      );
-    }
-
-    const scenarioIds = scenarios?.map((s) => s.id) || [];
+    const scenarioIds = scenarios.map((s) => s.id);
 
     if (scenarioIds.length === 0) {
       return NextResponse.json(
@@ -214,43 +192,41 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
     }
 
-    // Step 2: Query outputs using scenario IDs
-    // Note: We filter by version OR null to handle outputs created before versioning was added
-    const { data: outputs, error: outputsError } = await supabase
-      .from("outputs")
-      .select(
-        `
-        *,
-        ratings!inner (
-          id,
-          stars,
-          feedback_text,
-          tags,
-          created_at
-        ),
-        scenario:scenarios (
-          id,
-          input_text
-        )
-      `,
-      )
-      .in("scenario_id", scenarioIds)
-      .or(
-        `model_snapshot->>version.eq.${currentVersion},model_snapshot->>version.is.null`,
-      );
+    // Get outputs for these scenarios
+    const outputs = db
+      .select()
+      .from(schema.outputs)
+      .where(inArray(schema.outputs.scenario_id, scenarioIds))
+      .all();
 
-    if (outputsError) {
-      console.error("Error fetching outputs:", outputsError);
-      return NextResponse.json(
-        { error: "Failed to fetch outputs" },
-        { status: 500 },
-      );
-    }
+    // Get ratings for these outputs
+    const outputIds = outputs.map((o) => o.id);
+    const allRatings =
+      outputIds.length > 0
+        ? db
+            .select()
+            .from(schema.ratings)
+            .where(inArray(schema.ratings.output_id, outputIds))
+            .all()
+        : [];
 
-    // Filter to only outputs that have ratings
-    const outputsWithRatings = outputs.filter(
-      (output: any) => output.ratings && output.ratings.length > 0,
-    );
+    // Join in memory, parse JSON columns
+    const outputsWithRatings = outputs
+      .map((output) => ({
+        ...output,
+        model_snapshot: output.model_snapshot
+          ? JSON.parse(output.model_snapshot)
+          : null,
+        ratings: allRatings
+          .filter((r) => r.output_id === output.id)
+          .map((r) => ({
+            ...r,
+            tags: r.tags ? JSON.parse(r.tags) : null,
+            metadata: r.metadata ? JSON.parse(r.metadata) : null,
+          })),
+        scenario: scenarios.find((s) => s.id === output.scenario_id),
+      }))
+      .filter((o) => o.ratings.length > 0);
 
     if (outputsWithRatings.length === 0) {
       return NextResponse.json(
@@ -263,14 +239,12 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     // Deduplicate to get only the most recent output per scenario
-    // This ensures we analyze each scenario once with its latest result
     const scenarioToLatestOutput = new Map<number, any>();
 
     outputsWithRatings.forEach((output: any) => {
       const scenarioId = output.scenario_id;
       const existingOutput = scenarioToLatestOutput.get(scenarioId);
 
-      // Keep the output with the most recent generated_at timestamp
       if (
         !existingOutput ||
         new Date(output.generated_at) > new Date(existingOutput.generated_at)
@@ -515,7 +489,6 @@ IMPORTANT:
 
     if (securityFlags.length > 0) {
       console.error("[SECURITY] Extraction response validation failed:", {
-        user_id: user.id,
         project_id: projectId,
         flags: securityFlags,
       });
@@ -551,26 +524,24 @@ IMPORTANT:
     }
 
     // Calculate confidence score based on number of ratings
-    // Uses shared calculation from lib/metrics to ensure consistency across app
     const { calculateConfidenceScore } = await import("@/lib/metrics");
     const confidenceScore = calculateConfidenceScore(ratedOutputs.length);
 
-    // Save extraction to database with snapshots
-    const { data: extraction, error: extractionError } = await supabase
-      .from("extractions")
-      .insert({
+    // Save extraction to database
+    const extraction = db
+      .insert(schema.extractions)
+      .values({
         project_id: projectId,
-        criteria: analysisResult,
-        dimensions: analysisResult.dimensions, // NEW: Store structured dimensions
+        criteria: JSON.stringify(analysisResult),
+        dimensions: JSON.stringify(analysisResult.dimensions),
         confidence_score: confidenceScore,
         rated_output_count: ratedOutputs.length,
         system_prompt_snapshot: systemPrompt,
       })
-      .select()
-      .single();
+      .returning()
+      .get();
 
-    if (extractionError) {
-      console.error("Supabase error:", extractionError);
+    if (!extraction) {
       return NextResponse.json(
         { error: "Failed to save extraction" },
         { status: 500 },
@@ -584,7 +555,6 @@ IMPORTANT:
     ).length;
     const successRate = totalOutputs > 0 ? successfulOutputs / totalOutputs : 0;
 
-    // Calculate breakdown by dimensional confidence scores
     const criteriaBreakdown = {
       length: analysisResult.dimensions.length.confidence,
       tone: analysisResult.dimensions.tone.confidence,
@@ -593,34 +563,45 @@ IMPORTANT:
       errors: analysisResult.dimensions.errors.confidence,
     };
 
-    const { data: metric, error: metricError } = await supabase
-      .from("metrics")
-      .insert({
+    const metric = db
+      .insert(schema.metrics)
+      .values({
         project_id: projectId,
         extraction_id: extraction.id,
         success_rate: successRate,
-        criteria_breakdown: criteriaBreakdown || {},
+        criteria_breakdown: JSON.stringify(criteriaBreakdown),
       })
-      .select()
-      .single();
+      .returning()
+      .get();
 
-    if (metricError) {
-      console.error("Metric error:", metricError);
+    if (!metric) {
+      console.error("Metric insert returned null");
     }
 
     const response: ExtractResponse = {
       success: true,
       extraction: {
-        ...extraction,
-        criteria: extraction.criteria as unknown as ExtractionCriteria,
+        id: extraction.id,
+        project_id: extraction.project_id,
+        criteria: JSON.parse(
+          extraction.criteria || "{}",
+        ) as unknown as ExtractionCriteria,
+        confidence_score: extraction.confidence_score,
+        rated_output_count:
+          extraction.rated_output_count ?? ratedOutputs.length,
+        system_prompt_snapshot:
+          extraction.system_prompt_snapshot ?? systemPrompt,
+        created_at: extraction.created_at,
       },
       metric: metric
         ? {
             ...metric,
-            criteria_breakdown: metric.criteria_breakdown as unknown as Record<
-              string,
-              string
-            > | null,
+            criteria_breakdown: metric.criteria_breakdown
+              ? (JSON.parse(metric.criteria_breakdown) as unknown as Record<
+                  string,
+                  string
+                > | null)
+              : null,
           }
         : null,
       analyzed_outputs: totalOutputs,

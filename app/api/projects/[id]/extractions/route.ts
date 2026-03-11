@@ -1,73 +1,60 @@
-import { NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase';
-import { parseId } from '@/lib/utils';
+import { NextResponse } from "next/server";
+import { getDb, schema } from "@/lib/db";
+import { eq, desc } from "drizzle-orm";
+import { parseId } from "@/lib/utils";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-export async function GET(request: Request, { params }: RouteParams) {
+export async function GET(_request: Request, { params }: RouteParams) {
   try {
-    const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
     const { id: projectIdString } = await params;
     const projectId = parseId(projectIdString);
 
-    // Fetch all extractions with their metrics (RLS ensures user has access)
-    const { data: extractions, error } = await supabase
-      .from('extractions')
-      .select(`
-        id,
-        created_at,
-        confidence_score,
-        rated_output_count,
-        metrics (
-          success_rate,
-          snapshot_time
-        )
-      `)
-      .eq('project_id', projectId)
-      .order('created_at', { ascending: false });
+    const db = getDb();
 
-    if (error) {
-      console.error('Supabase error:', error);
-      return NextResponse.json(
-        { error: 'Failed to fetch extractions' },
-        { status: 500 }
-      );
-    }
+    // Fetch all extractions for this project
+    const extractions = db
+      .select()
+      .from(schema.extractions)
+      .where(eq(schema.extractions.project_id, projectId))
+      .orderBy(desc(schema.extractions.created_at))
+      .all();
 
-    // Get scenario count for the project (constant across extractions)
-    const { data: scenarios } = await supabase
-      .from('scenarios')
-      .select('id')
-      .eq('project_id', projectId);
+    // Get scenario count for the project
+    const scenarioRows = db
+      .select()
+      .from(schema.scenarios)
+      .where(eq(schema.scenarios.project_id, projectId))
+      .all();
 
-    const scenarioCount = scenarios?.length || 0;
+    const scenarioCount = scenarioRows.length;
 
-    // Format response
-    const formattedExtractions = extractions?.map(extraction => ({
-      id: extraction.id,
-      created_at: extraction.created_at,
-      confidence_score: extraction.confidence_score,
-      success_rate: extraction.metrics?.[0]?.success_rate || 0,
-      scenario_count: scenarioCount,
-    })) || [];
+    // Format response - fetch metric for each extraction
+    const formattedExtractions = extractions.map((extraction) => {
+      const metric = db
+        .select()
+        .from(schema.metrics)
+        .where(eq(schema.metrics.extraction_id, extraction.id))
+        .limit(1)
+        .get();
+
+      return {
+        id: extraction.id,
+        created_at: extraction.created_at,
+        confidence_score: extraction.confidence_score,
+        success_rate: metric?.success_rate || 0,
+        scenario_count: scenarioCount,
+      };
+    });
 
     return NextResponse.json({ data: formattedExtractions });
   } catch (error) {
-    console.error('API error:', error);
+    console.error("API error:", error);
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      { error: "Internal server error" },
+      { status: 500 },
     );
   }
 }

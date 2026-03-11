@@ -1,21 +1,16 @@
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase";
+import { getDb, schema } from "@/lib/db";
+import { eq, asc, inArray, sql, desc, ne } from "drizzle-orm";
 import { parseId } from "@/lib/utils";
 import { resolveProvider } from "@/lib/ai/provider-resolver";
 import { generateCompletion } from "@/lib/ai/generation";
 import { calculateSimilarity } from "@/lib/utils/string-similarity";
-import {
-  checkQuotaAvailable,
-  incrementUsage,
-  getUsageHeaders,
-} from "@/lib/api/quota-middleware";
-import { getModelTier } from "@/lib/ai/model-tiers";
+import { getConfig } from "@/lib/config";
 import { DEFAULT_MODEL_FALLBACK } from "@/lib/ai/default-models";
 import { handleApiError } from "@/lib/api/errors";
-import type { ModelConfig, UserApiKeys } from "@/types/database";
+import type { ModelConfig } from "@/types/database";
 import type { RetestRequest, RetestResponse } from "@/types/api";
 import { retestSchema } from "@/lib/validation/schemas";
-import { z } from "zod";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -23,17 +18,9 @@ interface RouteParams {
 
 export async function POST(request: Request, { params }: RouteParams) {
   try {
-    const supabase = await createServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { id: projectIdString } = await params;
     const projectId = parseId(projectIdString);
+    const db = getDb();
 
     // Validate request body with Zod
     const body = await request.json();
@@ -52,149 +39,124 @@ export async function POST(request: Request, { params }: RouteParams) {
     const { scenarioIds, newSystemPrompt, improvementNote } =
       validationResult.data;
 
-    // Fetch project details (RLS ensures user has access)
-    const { data: project, error: projectError } = await supabase
-      .from("projects")
-      .select("*, workbench_id")
-      .eq("id", projectId)
-      .single();
+    // Fetch project
+    const project = db
+      .select()
+      .from(schema.projects)
+      .where(eq(schema.projects.id, projectId))
+      .get();
 
-    if (projectError || !project) {
+    if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
-    const modelConfig = project.model_config as unknown as ModelConfig;
+    const modelConfig = JSON.parse(project.model_config || "{}") as ModelConfig;
     const oldSystemPrompt = modelConfig.system_prompt || "";
-    const currentVersion = project.prompt_version || 1;
+
+    // Get current version from prompt_versions table
+    const latestVersion = db
+      .select({
+        maxVersion: sql<number>`MAX(${schema.prompt_versions.version_number})`,
+      })
+      .from(schema.prompt_versions)
+      .where(eq(schema.prompt_versions.project_id, projectId))
+      .get();
+    const currentVersion = latestVersion?.maxVersion || 1;
     const newVersion = currentVersion + 1;
 
-    // Fetch workbench API keys
-    const { data: apiKeys, error: keysError } = (await supabase.rpc(
-      "get_workbench_api_keys",
-      { workbench_uuid: project.workbench_id ?? "" },
-    )) as {
-      data: UserApiKeys | null;
-      error: any;
+    // Get API keys from config
+    const config = getConfig();
+    const userKeys = {
+      openai: config.openai_api_key,
+      anthropic: config.anthropic_api_key,
     };
-
-    if (keysError) {
-      console.error("Error fetching API keys:", keysError);
-      return NextResponse.json(
-        { error: "Failed to fetch API keys" },
-        { status: 500 },
-      );
-    }
 
     // Determine which provider and model to use
     const { provider, modelName, apiKey } = resolveProvider(
       modelConfig.model || DEFAULT_MODEL_FALLBACK,
-      apiKeys,
+      userKeys,
     );
 
-    // Fetch ALL scenarios for the project first to check quota
-    const { data: allScenarios, error: allScenariosError } = await supabase
-      .from("scenarios")
-      .select("*")
-      .eq("project_id", projectId)
-      .order("order", { ascending: true });
+    // Fetch ALL scenarios for the project
+    const allScenarios = db
+      .select()
+      .from(schema.scenarios)
+      .where(eq(schema.scenarios.project_id, projectId))
+      .orderBy(asc(schema.scenarios.order))
+      .all();
 
-    if (allScenariosError || !allScenarios) {
+    if (!allScenarios || allScenarios.length === 0) {
       return NextResponse.json(
         { error: "Failed to fetch scenarios" },
         { status: 500 },
       );
     }
 
-    // CHECK QUOTA: Ensure workbench has quota for all scenarios
-    if (!project.workbench_id) {
-      return NextResponse.json(
-        { error: "Project has no associated workbench" },
-        { status: 500 },
-      );
-    }
-
-    const subscription = await checkQuotaAvailable(
-      supabase,
-      project.workbench_id,
-      modelName,
-      allScenarios.length,
-    );
-
-    const modelTier = getModelTier(modelName);
-
     // Calculate success rate before change (for failed scenarios only)
-    const { data: oldOutputs } = await supabase
-      .from("outputs")
-      .select(
-        `
-        *,
-        ratings (
-          stars
-        )
-      `,
-      )
-      .in("scenario_id", scenarioIds);
+    const oldOutputs =
+      scenarioIds.length > 0
+        ? db
+            .select()
+            .from(schema.outputs)
+            .where(inArray(schema.outputs.scenario_id, scenarioIds))
+            .all()
+        : [];
 
-    const oldRatedOutputs = (oldOutputs || []).filter(
-      (o: any) => o.ratings && o.ratings.length > 0,
+    const oldOutputIds = oldOutputs.map((o) => o.id);
+    const oldRatingsRaw =
+      oldOutputIds.length > 0
+        ? db
+            .select()
+            .from(schema.ratings)
+            .where(inArray(schema.ratings.output_id, oldOutputIds))
+            .all()
+        : [];
+
+    const oldRatedOutputs = oldOutputs.filter((o) =>
+      oldRatingsRaw.some((r) => r.output_id === o.id),
     );
-    const oldSuccessCount = oldRatedOutputs.filter(
-      (o: any) => o.ratings[0].stars >= 4,
-    ).length;
+    const oldSuccessCount = oldRatedOutputs.filter((o) => {
+      const rating = oldRatingsRaw.find((r) => r.output_id === o.id);
+      return rating && (rating.stars ?? 0) >= 4;
+    }).length;
     const successRateBefore =
       oldRatedOutputs.length > 0 ? oldSuccessCount / oldRatedOutputs.length : 0;
 
-    // Save new prompt iteration
-    const { error: iterationError } = await supabase
-      .from("prompt_iterations")
-      .insert({
+    // Save new prompt version
+    db.insert(schema.prompt_versions)
+      .values({
         project_id: projectId,
-        version: newVersion,
+        version_number: newVersion,
         system_prompt: newSystemPrompt,
         parent_version: currentVersion,
-        improvement_note: improvementNote || null,
         success_rate_before: successRateBefore,
-      });
+      })
+      .run();
 
-    if (iterationError) {
-      console.error("Failed to save iteration:", iterationError);
-      return NextResponse.json(
-        { error: "Failed to save prompt iteration" },
-        { status: 500 },
-      );
-    }
-
-    // Update project with new prompt and version
-    const { error: updateError } = await supabase
-      .from("projects")
-      .update({
-        model_config: {
+    // Update project with new prompt
+    db.update(schema.projects)
+      .set({
+        model_config: JSON.stringify({
           ...modelConfig,
           system_prompt: newSystemPrompt,
-        },
-        prompt_version: newVersion,
+        }),
         updated_at: new Date().toISOString(),
       })
-      .eq("id", projectId);
+      .where(eq(schema.projects.id, projectId))
+      .run();
 
-    if (updateError) {
-      console.error("Failed to update project:", updateError);
-      return NextResponse.json(
-        { error: "Failed to update project" },
-        { status: 500 },
-      );
-    }
-
-    // Use scenarios already fetched for quota check
     const scenarios = allScenarios;
 
     // Generate new outputs for each scenario
-    const newOutputs = [];
-    let totalInputTokens = 0;
-    let totalOutputTokens = 0;
+    const newOutputs: Array<{
+      scenario_id: number;
+      output_id: number;
+      input: string;
+      output: string;
+    }> = [];
+
     for (const scenario of scenarios) {
       try {
-        // Generate completion using unified service
         const result = await generateCompletion({
           provider,
           model: modelName,
@@ -205,35 +167,26 @@ export async function POST(request: Request, { params }: RouteParams) {
         });
 
         const outputText = result.text;
-        const usage = result.usage;
-
-        // Track token usage for quota increment
-        if (usage.inputTokens) {
-          totalInputTokens += usage.inputTokens;
-        }
-        if (usage.outputTokens) {
-          totalOutputTokens += usage.outputTokens;
-        }
 
         // Save new output
-        const { data: output, error: outputError } = await supabase
-          .from("outputs")
-          .insert({
+        const output = db
+          .insert(schema.outputs)
+          .values({
             scenario_id: scenario.id,
             output_text: outputText,
-            model_snapshot: {
+            model_snapshot: JSON.stringify({
               model: modelName,
               system_prompt: newSystemPrompt,
               variables: modelConfig.variables,
               version: newVersion,
-              ...usage,
-            },
+              ...result.usage,
+            }),
           })
-          .select()
-          .single();
+          .returning()
+          .get();
 
-        if (outputError) {
-          console.error("Failed to save output:", outputError);
+        if (!output) {
+          console.error("Failed to save output for scenario", scenario.id);
           continue;
         }
 
@@ -250,27 +203,31 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     // Copy ratings from previous version outputs to new outputs
-    // This saves the user from re-rating unchanged outputs
     console.log(
       `Starting rating carryforward for ${newOutputs.length} outputs...`,
     );
     for (const newOutput of newOutputs) {
-      // Step 1: Find ALL previous outputs for this scenario (excluding the new one)
-      // We need to search through all of them to find one with a rating
-      const { data: previousOutputs, error: previousError } = await supabase
-        .from("outputs")
-        .select("id, output_text")
-        .eq("scenario_id", newOutput.scenario_id)
-        .neq("id", newOutput.output_id)
-        .order("generated_at", { ascending: false });
-
-      if (previousError) {
-        console.error(
-          `Error fetching previous outputs for scenario ${newOutput.scenario_id}:`,
-          previousError,
-        );
-        continue;
-      }
+      // Find ALL previous outputs for this scenario (excluding the new one)
+      const previousOutputs = db
+        .select({
+          id: schema.outputs.id,
+          output_text: schema.outputs.output_text,
+        })
+        .from(schema.outputs)
+        .where(
+          inArray(
+            schema.outputs.id,
+            db
+              .select({ id: schema.outputs.id })
+              .from(schema.outputs)
+              .where(eq(schema.outputs.scenario_id, newOutput.scenario_id))
+              .all()
+              .map((o) => o.id)
+              .filter((id) => id !== newOutput.output_id),
+          ),
+        )
+        .orderBy(desc(schema.outputs.generated_at))
+        .all();
 
       if (!previousOutputs || previousOutputs.length === 0) {
         console.log(
@@ -283,24 +240,25 @@ export async function POST(request: Request, { params }: RouteParams) {
         `Scenario ${newOutput.scenario_id}: Found ${previousOutputs.length} previous output(s)`,
       );
 
-      // Step 2: Search through previous outputs to find one with a rating
-      let previousRating = null;
-      let ratedOutput = null;
+      // Search through previous outputs to find one with a rating
+      let previousRating: {
+        stars: number | null;
+        feedback_text: string | null;
+        tags: string | null;
+      } | null = null;
+      let ratedOutput: { id: number; output_text: string } | null = null;
 
       for (const prevOutput of previousOutputs) {
-        const { data: ratings, error: ratingError } = await supabase
-          .from("ratings")
-          .select("stars, feedback_text, tags")
-          .eq("output_id", prevOutput.id)
-          .limit(1);
-
-        if (ratingError) {
-          console.error(
-            `Error fetching rating for output ${prevOutput.id}:`,
-            ratingError,
-          );
-          continue;
-        }
+        const ratings = db
+          .select({
+            stars: schema.ratings.stars,
+            feedback_text: schema.ratings.feedback_text,
+            tags: schema.ratings.tags,
+          })
+          .from(schema.ratings)
+          .where(eq(schema.ratings.output_id, prevOutput.id))
+          .limit(1)
+          .all();
 
         if (ratings && ratings.length > 0) {
           previousRating = ratings[0];
@@ -329,44 +287,26 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
 
       // Copy the rating
-      const { error: insertError } = await supabase.from("ratings").insert({
-        output_id: newOutput.output_id,
-        stars: previousRating.stars,
-        feedback_text: previousRating.feedback_text || null,
-        tags: previousRating.tags || null,
-        metadata: {
-          carried_forward: true,
-          previous_output_id: ratedOutput.id,
-          similarity_score: similarity,
-          needs_review: similarity < 0.9,
-        },
-      });
+      db.insert(schema.ratings)
+        .values({
+          output_id: newOutput.output_id,
+          stars: previousRating.stars ?? undefined,
+          feedback_text: previousRating.feedback_text ?? undefined,
+          tags: previousRating.tags ?? undefined,
+          metadata: JSON.stringify({
+            carried_forward: true,
+            previous_output_id: ratedOutput.id,
+            similarity_score: similarity,
+            needs_review: similarity < 0.9,
+          }),
+        })
+        .run();
 
-      if (insertError) {
-        console.error(
-          `Error inserting rating for output ${newOutput.output_id}:`,
-          insertError,
-        );
-      } else {
-        console.log(
-          `Scenario ${newOutput.scenario_id}: Rating copied successfully`,
-        );
-      }
-    }
-    console.log("Rating carryforward complete");
-
-    // INCREMENT USAGE: Track successful generation in quota system
-    if (newOutputs.length > 0) {
-      await incrementUsage(
-        supabase,
-        project.workbench_id,
-        modelName,
-        newOutputs.length,
-        totalInputTokens,
-        totalOutputTokens,
-        projectId,
+      console.log(
+        `Scenario ${newOutput.scenario_id}: Rating copied successfully`,
       );
     }
+    console.log("Rating carryforward complete");
 
     const response: RetestResponse = {
       success: true,
@@ -379,10 +319,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       },
     };
 
-    // Add quota usage headers to response
-    const headers = getUsageHeaders(subscription, modelTier);
-
-    return NextResponse.json(response, { headers });
+    return NextResponse.json(response);
   } catch (error) {
     return handleApiError(error);
   }

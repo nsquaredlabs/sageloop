@@ -1,5 +1,5 @@
-import { createServerClient } from "@/lib/supabase";
-import { redirect } from "next/navigation";
+import { getDb, schema } from "@/lib/db";
+import { desc } from "drizzle-orm";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,25 +12,15 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Plus, Calendar, FileText } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export default async function ProjectsPage() {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  // Fetch all projects from Supabase (RLS automatically filters by user's workbenches)
-  const { data: projects, error } = await supabase
-    .from("projects")
-    .select("*, workbenches(name)")
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    console.error("Error fetching projects:", error);
-  }
+  const db = getDb();
+  const projects = db
+    .select()
+    .from(schema.projects)
+    .orderBy(desc(schema.projects.created_at))
+    .all();
 
   return (
     <div className="min-h-screen bg-background">
@@ -52,7 +42,7 @@ export default async function ProjectsPage() {
         </div>
 
         {/* Projects Grid */}
-        {projects && projects.length > 0 ? (
+        {projects.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {projects.map((project) => (
               <ProjectCard key={project.id} project={project} />
@@ -66,8 +56,18 @@ export default async function ProjectsPage() {
   );
 }
 
-function ProjectCard({ project }: { project: any }) {
-  const modelConfig = project.model_config as {
+interface ProjectRow {
+  id: number;
+  name: string;
+  description: string | null;
+  model_config: string | null;
+  created_at: string | null;
+}
+
+function ProjectCard({ project }: { project: ProjectRow }) {
+  const modelConfig = (
+    project.model_config ? JSON.parse(project.model_config) : {}
+  ) as {
     model?: string;
     system_prompt?: string;
   };
@@ -89,11 +89,13 @@ function ProjectCard({ project }: { project: any }) {
         <CardContent>
           <div className="flex items-center text-sm text-muted-foreground">
             <Calendar className="mr-2 h-4 w-4" />
-            {new Date(project.created_at).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            })}
+            {project.created_at
+              ? new Date(project.created_at).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })
+              : "Unknown date"}
           </div>
         </CardContent>
       </Card>

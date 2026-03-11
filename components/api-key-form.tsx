@@ -4,82 +4,23 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Check, X, Eye, EyeOff, Trash2 } from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { Loader2, Check, Eye, EyeOff } from "lucide-react";
 
 interface ApiKeyFormProps {
-  workbenchId: string;
   initialConfigured: {
     openai?: boolean;
     anthropic?: boolean;
   };
 }
 
-export function ApiKeyForm({
-  workbenchId,
-  initialConfigured,
-}: ApiKeyFormProps) {
+export function ApiKeyForm({ initialConfigured }: ApiKeyFormProps) {
   const [openaiKey, setOpenaiKey] = useState("");
   const [anthropicKey, setAnthropicKey] = useState("");
   const [showOpenaiKey, setShowOpenaiKey] = useState(false);
   const [showAnthropicKey, setShowAnthropicKey] = useState(false);
   const [isConfigured, setIsConfigured] = useState(initialConfigured);
   const [isSaving, setIsSaving] = useState(false);
-  const [isTesting, setIsTesting] = useState<"openai" | "anthropic" | null>(
-    null,
-  );
-  const [testResults, setTestResults] = useState<{
-    openai?: { valid: boolean; error?: string };
-    anthropic?: { valid: boolean; error?: string };
-  }>({});
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const [deleteDialog, setDeleteDialog] = useState<
-    "openai" | "anthropic" | null
-  >(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  const handleDelete = async (provider: "openai" | "anthropic") => {
-    setIsDeleting(true);
-    setSaveMessage(null);
-
-    try {
-      const response = await fetch(
-        `/api/workbenches/${workbenchId}/api-keys?provider=${provider}`,
-        {
-          method: "DELETE",
-          credentials: "include",
-        },
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to delete API key");
-      }
-
-      const result = await response.json();
-      setIsConfigured(result.configured);
-      setSaveMessage(result.message || "API key deleted successfully");
-
-      // Clear message after 5 seconds
-      setTimeout(() => setSaveMessage(null), 5000);
-    } catch (err) {
-      setSaveMessage(
-        err instanceof Error ? err.message : "Failed to delete API key",
-      );
-    } finally {
-      setIsDeleting(false);
-      setDeleteDialog(null);
-    }
-  };
 
   const handleSave = async () => {
     if (!openaiKey && !anthropicKey) {
@@ -91,15 +32,14 @@ export function ApiKeyForm({
     setSaveMessage(null);
 
     try {
-      const response = await fetch(`/api/workbenches/${workbenchId}/api-keys`, {
+      const response = await fetch("/api/settings/config", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        credentials: "include",
         body: JSON.stringify({
-          ...(openaiKey && { openai: openaiKey }),
-          ...(anthropicKey && { anthropic: anthropicKey }),
+          ...(openaiKey && { openai_api_key: openaiKey }),
+          ...(anthropicKey && { anthropic_api_key: anthropicKey }),
         }),
       });
 
@@ -108,8 +48,10 @@ export function ApiKeyForm({
         throw new Error(errorData.error || "Failed to save API keys");
       }
 
-      const result = await response.json();
-      setIsConfigured(result.configured);
+      setIsConfigured({
+        openai: openaiKey ? true : isConfigured.openai,
+        anthropic: anthropicKey ? true : isConfigured.anthropic,
+      });
       setSaveMessage("API keys saved successfully");
 
       // Clear input fields after successful save
@@ -129,52 +71,6 @@ export function ApiKeyForm({
     }
   };
 
-  const handleTest = async (provider: "openai" | "anthropic") => {
-    setIsTesting(provider);
-    setTestResults({ ...testResults, [provider]: undefined });
-
-    try {
-      const response = await fetch(
-        `/api/workbenches/${workbenchId}/api-keys/test`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({ provider }),
-        },
-      );
-
-      if (!response.ok) {
-        let errorMessage = "Test failed";
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.error || errorMessage;
-        } catch {
-          const text = await response.text().catch(() => "");
-          if (text) {
-            errorMessage = text.slice(0, 200);
-          }
-        }
-        throw new Error(errorMessage);
-      }
-
-      const result = await response.json();
-      setTestResults({ ...testResults, [provider]: result });
-    } catch (err) {
-      setTestResults({
-        ...testResults,
-        [provider]: {
-          valid: false,
-          error: err instanceof Error ? err.message : "Test failed",
-        },
-      });
-    } finally {
-      setIsTesting(null);
-    }
-  };
-
   return (
     <div className="space-y-6">
       {/* OpenAI API Key */}
@@ -188,74 +84,29 @@ export function ApiKeyForm({
             </span>
           )}
         </div>
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Input
-              id="openai-key"
-              type={showOpenaiKey ? "text" : "password"}
-              placeholder={isConfigured.openai ? "sk-...****" : "sk-..."}
-              value={openaiKey}
-              onChange={(e) => setOpenaiKey(e.target.value)}
-              className="pr-10"
-            />
-            <button
-              type="button"
-              onClick={() => setShowOpenaiKey(!showOpenaiKey)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              {showOpenaiKey ? (
-                <EyeOff className="h-4 w-4" />
-              ) : (
-                <Eye className="h-4 w-4" />
-              )}
-            </button>
-          </div>
-          <Button
+        <div className="relative">
+          <Input
+            id="openai-key"
+            type={showOpenaiKey ? "text" : "password"}
+            placeholder={
+              isConfigured.openai ? "Enter new key to replace..." : "sk-..."
+            }
+            value={openaiKey}
+            onChange={(e) => setOpenaiKey(e.target.value)}
+            className="pr-10"
+          />
+          <button
             type="button"
-            variant="outline"
-            onClick={() => handleTest("openai")}
-            disabled={!isConfigured.openai || isTesting === "openai"}
+            onClick={() => setShowOpenaiKey(!showOpenaiKey)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           >
-            {isTesting === "openai" ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Testing...
-              </>
+            {showOpenaiKey ? (
+              <EyeOff className="h-4 w-4" />
             ) : (
-              "Test"
+              <Eye className="h-4 w-4" />
             )}
-          </Button>
-          {isConfigured.openai && (
-            <Button
-              type="button"
-              variant="destructive"
-              size="icon"
-              onClick={() => setDeleteDialog("openai")}
-              disabled={isDeleting}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          )}
+          </button>
         </div>
-        {testResults.openai && (
-          <div
-            className={`text-sm flex items-center gap-1 ${
-              testResults.openai.valid ? "text-green-600" : "text-red-600"
-            }`}
-          >
-            {testResults.openai.valid ? (
-              <>
-                <Check className="h-4 w-4" />
-                API key is valid
-              </>
-            ) : (
-              <>
-                <X className="h-4 w-4" />
-                {testResults.openai.error || "API key is invalid"}
-              </>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Anthropic API Key */}
@@ -269,76 +120,31 @@ export function ApiKeyForm({
             </span>
           )}
         </div>
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Input
-              id="anthropic-key"
-              type={showAnthropicKey ? "text" : "password"}
-              placeholder={
-                isConfigured.anthropic ? "sk-ant-...****" : "sk-ant-..."
-              }
-              value={anthropicKey}
-              onChange={(e) => setAnthropicKey(e.target.value)}
-              className="pr-10"
-            />
-            <button
-              type="button"
-              onClick={() => setShowAnthropicKey(!showAnthropicKey)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              {showAnthropicKey ? (
-                <EyeOff className="h-4 w-4" />
-              ) : (
-                <Eye className="h-4 w-4" />
-              )}
-            </button>
-          </div>
-          <Button
+        <div className="relative">
+          <Input
+            id="anthropic-key"
+            type={showAnthropicKey ? "text" : "password"}
+            placeholder={
+              isConfigured.anthropic
+                ? "Enter new key to replace..."
+                : "sk-ant-..."
+            }
+            value={anthropicKey}
+            onChange={(e) => setAnthropicKey(e.target.value)}
+            className="pr-10"
+          />
+          <button
             type="button"
-            variant="outline"
-            onClick={() => handleTest("anthropic")}
-            disabled={!isConfigured.anthropic || isTesting === "anthropic"}
+            onClick={() => setShowAnthropicKey(!showAnthropicKey)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           >
-            {isTesting === "anthropic" ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Testing...
-              </>
+            {showAnthropicKey ? (
+              <EyeOff className="h-4 w-4" />
             ) : (
-              "Test"
+              <Eye className="h-4 w-4" />
             )}
-          </Button>
-          {isConfigured.anthropic && (
-            <Button
-              type="button"
-              variant="destructive"
-              size="icon"
-              onClick={() => setDeleteDialog("anthropic")}
-              disabled={isDeleting}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          )}
+          </button>
         </div>
-        {testResults.anthropic && (
-          <div
-            className={`text-sm flex items-center gap-1 ${
-              testResults.anthropic.valid ? "text-green-600" : "text-red-600"
-            }`}
-          >
-            {testResults.anthropic.valid ? (
-              <>
-                <Check className="h-4 w-4" />
-                API key is valid
-              </>
-            ) : (
-              <>
-                <X className="h-4 w-4" />
-                {testResults.anthropic.error || "API key is invalid"}
-              </>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Save Button */}
@@ -359,9 +165,7 @@ export function ApiKeyForm({
         {saveMessage && (
           <span
             className={`text-sm ${
-              saveMessage.includes("success") ||
-              saveMessage.includes("deleted") ||
-              saveMessage.includes("removed")
+              saveMessage.includes("success")
                 ? "text-green-600"
                 : "text-red-600"
             }`}
@@ -370,49 +174,6 @@ export function ApiKeyForm({
           </span>
         )}
       </div>
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog
-        open={deleteDialog !== null}
-        onOpenChange={() => setDeleteDialog(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove API Key?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to remove your{" "}
-              {deleteDialog === "openai" ? "OpenAI" : "Anthropic"} API key?
-              <br />
-              <br />
-              <strong>
-                Any projects configured to use{" "}
-                {deleteDialog === "openai"
-                  ? "OpenAI models (GPT-4, GPT-5, etc.)"
-                  : "Claude models"}{" "}
-                will automatically fall back to the free tier model (GPT-5 Nano)
-              </strong>{" "}
-              when generating outputs.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteDialog && handleDelete(deleteDialog)}
-              disabled={isDeleting}
-              className="bg-destructive hover:bg-destructive/90"
-            >
-              {isDeleting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Removing...
-                </>
-              ) : (
-                "Remove Key"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

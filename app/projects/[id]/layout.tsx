@@ -1,37 +1,36 @@
-import { createServerClient } from '@/lib/supabase';
-import { parseId } from '@/lib/utils';
-import { notFound } from 'next/navigation';
-import { ProjectNav } from '@/components/project-nav';
+import { getDb, schema } from "@/lib/db";
+import { eq } from "drizzle-orm";
+import { parseId } from "@/lib/utils";
+import { notFound } from "next/navigation";
+import { ProjectNav } from "@/components/project-nav";
 
 interface ProjectLayoutProps {
   children: React.ReactNode;
   params: Promise<{ id: string }>;
 }
 
-export default async function ProjectLayout({ children, params }: ProjectLayoutProps) {
+export default async function ProjectLayout({
+  children,
+  params,
+}: ProjectLayoutProps) {
   const { id: idString } = await params;
   const id = parseId(idString);
 
-  // Use authenticated server client - enforces RLS
-  const supabase = await createServerClient();
+  const db = getDb();
+  const project = db
+    .select({ id: schema.projects.id, name: schema.projects.name })
+    .from(schema.projects)
+    .where(eq(schema.projects.id, id))
+    .get();
 
-  // Fetch project name for navigation
-  const { data: project, error } = await supabase
-    .from('projects')
-    .select('id, name')
-    .eq('id', id)
-    .single();
-
-  if (error || !project) {
+  if (!project) {
     notFound();
   }
 
   return (
     <div className="flex min-h-screen">
       <ProjectNav projectId={String(id)} projectName={project.name} />
-      <main className="flex-1 overflow-auto">
-        {children}
-      </main>
+      <main className="flex-1 overflow-auto">{children}</main>
     </div>
   );
 }
