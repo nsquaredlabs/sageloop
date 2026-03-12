@@ -1,21 +1,26 @@
 import { NextResponse } from "next/server";
 import { SUPPORTED_MODELS } from "@/lib/ai/default-models";
+import { getConfig } from "@/lib/config";
 
 /**
- * GET /api/models - Fetch all available models
+ * GET /api/models - Fetch available models based on configured API keys
  *
- * Returns all supported models without subscription filtering.
- * In the open-source local-first version, all models are available.
+ * Only returns models for providers the user has configured keys for.
  */
 export async function GET() {
-  const models = SUPPORTED_MODELS.map((m) => ({
+  const config = getConfig();
+  const hasOpenai = !!config.openai_api_key;
+  const hasAnthropic = !!config.anthropic_api_key;
+
+  const models = SUPPORTED_MODELS.filter((m) => {
+    if (m.provider === "openai") return hasOpenai;
+    if (m.provider === "anthropic") return hasAnthropic;
+    return false;
+  }).map((m) => ({
     id: m.id,
     name: m.name,
     provider: m.provider,
   }));
 
-  return NextResponse.json({
-    models,
-    defaultModel: "gpt-4o-mini",
-  });
+  return NextResponse.json({ models });
 }

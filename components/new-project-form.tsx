@@ -23,12 +23,8 @@ export function NewProjectForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Use the shared hook for fetching models based on subscription plan
-  const {
-    models,
-    defaultModel,
-    isLoading: loadingModels,
-  } = useAvailableModels();
+  // Use the shared hook for fetching models based on configured API keys
+  const { models, isLoading: loadingModels } = useAvailableModels();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -37,12 +33,12 @@ export function NewProjectForm() {
     systemPrompt: "",
   });
 
-  // Set default model when it becomes available
+  // Pre-select the first available model when models load
   useEffect(() => {
-    if (defaultModel && !formData.model) {
-      setFormData((prev) => ({ ...prev, model: defaultModel }));
+    if (models.length > 0 && !formData.model) {
+      setFormData((prev) => ({ ...prev, model: models[0].id }));
     }
-  }, [defaultModel, formData.model]);
+  }, [models, formData.model]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

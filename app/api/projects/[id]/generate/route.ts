@@ -5,7 +5,6 @@ import { parseId } from "@/lib/utils";
 import { resolveProvider } from "@/lib/ai/provider-resolver";
 import { generateCompletion } from "@/lib/ai/generation";
 import { getConfig } from "@/lib/config";
-import { DEFAULT_MODEL_FALLBACK } from "@/lib/ai/default-models";
 import {
   validateSystemPrompt,
   validateScenarioInput,
@@ -105,7 +104,7 @@ export async function POST(_request: Request, { params }: RouteParams) {
       anthropic: config.anthropic_api_key,
     };
     const { provider, modelName, apiKey } = resolveProvider(
-      modelConfig.model || DEFAULT_MODEL_FALLBACK,
+      modelConfig.model,
       userKeys,
     );
 

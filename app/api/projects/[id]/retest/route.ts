@@ -6,7 +6,6 @@ import { resolveProvider } from "@/lib/ai/provider-resolver";
 import { generateCompletion } from "@/lib/ai/generation";
 import { calculateSimilarity } from "@/lib/utils/string-similarity";
 import { getConfig } from "@/lib/config";
-import { DEFAULT_MODEL_FALLBACK } from "@/lib/ai/default-models";
 import { handleApiError } from "@/lib/api/errors";
 import type { ModelConfig } from "@/types/database";
 import type { RetestRequest, RetestResponse } from "@/types/api";
@@ -73,7 +72,7 @@ export async function POST(request: Request, { params }: RouteParams) {
 
     // Determine which provider and model to use
     const { provider, modelName, apiKey } = resolveProvider(
-      modelConfig.model || DEFAULT_MODEL_FALLBACK,
+      modelConfig.model,
       userKeys,
     );
 

@@ -7,18 +7,17 @@
  * It handles:
  * - Loading state while fetching
  * - Error handling
- * - Default model selection
  * - Caching to prevent unnecessary re-fetches
  *
  * @example
  * ```tsx
- * const { models, defaultModel, isLoading, error } = useAvailableModels();
+ * const { models, isLoading, error } = useAvailableModels();
  *
  * if (isLoading) return <Spinner />;
  * if (error) return <ErrorMessage error={error} />;
  *
  * return (
- *   <Select defaultValue={defaultModel}>
+ *   <Select>
  *     {models.map(model => (
  *       <SelectItem key={model.id} value={model.id}>
  *         {model.name}
@@ -40,8 +39,6 @@ export interface ModelInfo {
 export interface UseAvailableModelsResult {
   /** List of all available models */
   models: ModelInfo[];
-  /** The recommended default model */
-  defaultModel: string;
   /** Whether the models are currently being fetched */
   isLoading: boolean;
   /** Error message if fetch failed */
@@ -55,7 +52,6 @@ export interface UseAvailableModelsResult {
  */
 export function useAvailableModels(): UseAvailableModelsResult {
   const [models, setModels] = useState<ModelInfo[]>([]);
-  const [defaultModel, setDefaultModel] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,12 +70,10 @@ export function useAvailableModels(): UseAvailableModelsResult {
       const data = await response.json();
 
       setModels(data.models || []);
-      setDefaultModel(data.defaultModel || "gpt-4o-mini");
     } catch (err) {
       console.error("Failed to fetch models:", err);
       setError(err instanceof Error ? err.message : "Failed to fetch models");
       setModels([]);
-      setDefaultModel("gpt-4o-mini");
     } finally {
       setIsLoading(false);
     }
@@ -91,7 +85,6 @@ export function useAvailableModels(): UseAvailableModelsResult {
 
   return {
     models,
-    defaultModel,
     isLoading,
     error,
     refetch: fetchModels,

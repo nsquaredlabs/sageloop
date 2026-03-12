@@ -48,8 +48,24 @@ export default function ApiKeysPage() {
       .then((r) => r.json())
       .then((data: ConfigState) => {
         setConfig(data);
-        setOutputModel(data.output_model);
-        setSystemModel(data.system_model);
+        // Only restore saved model if its provider is still configured
+        const isProviderConfigured = (modelId: string) => {
+          const openaiModel = SUPPORTED_MODELS.find(
+            (m) => m.id === modelId && m.provider === "openai",
+          );
+          const anthropicModel = SUPPORTED_MODELS.find(
+            (m) => m.id === modelId && m.provider === "anthropic",
+          );
+          if (openaiModel) return data.has_openai;
+          if (anthropicModel) return data.has_anthropic;
+          return false;
+        };
+        setOutputModel(
+          isProviderConfigured(data.output_model) ? data.output_model : "",
+        );
+        setSystemModel(
+          isProviderConfigured(data.system_model) ? data.system_model : "",
+        );
       })
       .catch(() => toast.error("Failed to load config"));
   }, []);
@@ -77,8 +93,27 @@ export default function ApiKeysPage() {
         (r) => r.json(),
       );
       setConfig(updated);
-      setOutputModel(updated.output_model);
-      setSystemModel(updated.system_model);
+      const isProviderConfiguredUpdated = (modelId: string) => {
+        const openaiModel = SUPPORTED_MODELS.find(
+          (m) => m.id === modelId && m.provider === "openai",
+        );
+        const anthropicModel = SUPPORTED_MODELS.find(
+          (m) => m.id === modelId && m.provider === "anthropic",
+        );
+        if (openaiModel) return updated.has_openai;
+        if (anthropicModel) return updated.has_anthropic;
+        return false;
+      };
+      setOutputModel(
+        isProviderConfiguredUpdated(updated.output_model)
+          ? updated.output_model
+          : "",
+      );
+      setSystemModel(
+        isProviderConfiguredUpdated(updated.system_model)
+          ? updated.system_model
+          : "",
+      );
     } catch {
       toast.error("Failed to save API keys");
     } finally {
@@ -245,7 +280,11 @@ export default function ApiKeysPage() {
                 <SelectValue placeholder="Select a model" />
               </SelectTrigger>
               <SelectContent>
-                {SUPPORTED_MODELS.map((m) => (
+                {SUPPORTED_MODELS.filter((m) => {
+                  if (m.provider === "openai") return config?.has_openai;
+                  if (m.provider === "anthropic") return config?.has_anthropic;
+                  return false;
+                }).map((m) => (
                   <SelectItem key={m.id} value={m.id}>
                     {m.name}
                   </SelectItem>
@@ -266,7 +305,11 @@ export default function ApiKeysPage() {
                 <SelectValue placeholder="Select a model" />
               </SelectTrigger>
               <SelectContent>
-                {SUPPORTED_MODELS.map((m) => (
+                {SUPPORTED_MODELS.filter((m) => {
+                  if (m.provider === "openai") return config?.has_openai;
+                  if (m.provider === "anthropic") return config?.has_anthropic;
+                  return false;
+                }).map((m) => (
                   <SelectItem key={m.id} value={m.id}>
                     {m.name}
                   </SelectItem>
