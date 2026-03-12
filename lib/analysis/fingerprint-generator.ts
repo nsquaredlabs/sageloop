@@ -15,6 +15,13 @@
 import type { z } from "zod";
 import type { DimensionalAnalysisSchema } from "@/lib/validation/dimensional-analysis";
 import { detectPatterns } from "./pattern-detection";
+import {
+  getStructureElements,
+  getLengthRanges,
+  getLengthMetric,
+  getToneAttributes,
+  getTonePatterns,
+} from "./analysis-helpers";
 
 // Type for dimensional analysis (extracted from Zod schema)
 type DimensionalAnalysis = z.infer<typeof DimensionalAnalysisSchema>;
@@ -109,8 +116,15 @@ export function generateFingerprint(
 function extractStructurePattern(
   structure: DimensionalAnalysis["structure"],
 ): PatternFingerprint["structure"] {
-  const highRatedIncludes = structure.high_rated_includes;
-  const commonElements = structure.common_elements;
+  if (!structure) {
+    return {
+      pattern: ["Opening", "Main Content", "Conclusion"],
+      description: "Follows a clear, logical structure with distinct sections",
+    };
+  }
+
+  const dims = { structure } as unknown as DimensionalAnalysis;
+  const { highIncludes, elements } = getStructureElements(dims);
 
   // Build a flow pattern from high-rated elements
   const flowSteps: string[] = [];
@@ -137,10 +151,12 @@ function extractStructurePattern(
 
   // Check which flow elements are present in high-rated outputs
   for (const flowItem of flowOrder) {
-    const found = highRatedIncludes.some((element) =>
-      flowItem.keywords.some((keyword) =>
-        element.toLowerCase().includes(keyword),
-      ),
+    const found = highIncludes.some(
+      (element) =>
+        element &&
+        flowItem.keywords.some((keyword) =>
+          element.toLowerCase().includes(keyword),
+        ),
     );
     if (found) {
       flowSteps.push(flowItem.label);
@@ -149,9 +165,9 @@ function extractStructurePattern(
 
   // If no specific flow detected, create from common elements
   if (flowSteps.length === 0) {
-    const elementsFound = commonElements
-      .filter((el) => el.prevalence_high_rated >= 60)
-      .map((el) => formatElementType(el.type));
+    const elementsFound = elements
+      .filter((el) => el && el.type && (el.prevalence_high_rated ?? 0) >= 60)
+      .map((el) => formatElementType(el?.type || ""));
 
     if (elementsFound.length > 0) {
       flowSteps.push(...elementsFound.slice(0, 4));
@@ -177,15 +193,25 @@ function extractStructurePattern(
 function extractLengthPattern(
   length: DimensionalAnalysis["length"],
 ): PatternFingerprint["length"] {
-  const { high_rated_range, metric, insight } = length;
+  if (!length) {
+    return {
+      range: "Not enough data",
+      description: "Insufficient data to determine optimal length",
+    };
+  }
+
+  const dims = { length } as unknown as DimensionalAnalysis;
+  const { high: highRange } = getLengthRanges(dims);
+  const metric = getLengthMetric(dims) || "words";
+  const insight = length.insight;
 
   // Format range string
-  const range = `${high_rated_range.min}-${high_rated_range.max} ${metric}`;
+  const range = `${highRange.min}-${highRange.max} ${metric}`;
 
   // Determine length style description
   let description: string;
 
-  const avgLength = high_rated_range.median;
+  const avgLength = highRange.median;
   if (metric === "words") {
     if (avgLength < 100) {
       description = "concise and direct";
@@ -210,8 +236,7 @@ function extractLengthPattern(
     }
   } else {
     // Use insight as fallback
-    description =
-      insight || `Optimal around ${high_rated_range.median} ${metric}`;
+    description = insight || `Optimal around ${highRange.median} ${metric}`;
   }
 
   return {
@@ -226,7 +251,18 @@ function extractLengthPattern(
 function extractTonePattern(
   tone: DimensionalAnalysis["tone"],
 ): PatternFingerprint["tone"] {
-  const { formality, technicality, sentiment, high_rated_pattern } = tone;
+  if (!tone) {
+    return {
+      primary: "Neutral",
+      characteristics: ["Balanced formality", "Standard complexity"],
+    };
+  }
+
+  const dims = { tone } as unknown as DimensionalAnalysis;
+  const attrs = getToneAttributes(dims);
+  const patterns = getTonePatterns(dims);
+
+  const { formality, technicality, sentiment } = attrs;
 
   // Build primary tone description
   const toneComponents: string[] = [];
@@ -270,17 +306,19 @@ function extractTonePattern(
   characteristics.push(formatTechnicality(technicality));
 
   // Add sentiment characteristic
-  characteristics.push(
-    `${sentiment.charAt(0).toUpperCase() + sentiment.slice(1)} sentiment`,
-  );
+  if (sentiment) {
+    characteristics.push(
+      `${sentiment.charAt(0).toUpperCase() + sentiment.slice(1)} sentiment`,
+    );
+  }
 
   // Add high-rated pattern if meaningful
   if (
-    high_rated_pattern &&
-    high_rated_pattern.length > 10 &&
-    high_rated_pattern.length < 100
+    patterns.highPattern &&
+    patterns.highPattern.length > 10 &&
+    patterns.highPattern.length < 100
   ) {
-    characteristics.push(high_rated_pattern);
+    characteristics.push(patterns.highPattern);
   }
 
   return {
@@ -307,7 +345,7 @@ function formatElementType(type: string): string {
 /**
  * Format formality level to human-readable description
  */
-function formatFormality(formality: string): string {
+function formatFormality(formality: string | null): string {
   const formalityMap: Record<string, string> = {
     very_formal: "Very formal language",
     formal: "Professional tone",
@@ -315,18 +353,20 @@ function formatFormality(formality: string): string {
     casual: "Conversational style",
     very_casual: "Friendly, casual tone",
   };
-  return formalityMap[formality] || "Standard formality";
+  return (formality && formalityMap[formality]) || "Standard formality";
 }
 
 /**
  * Format technicality level to human-readable description
  */
-function formatTechnicality(technicality: string): string {
+function formatTechnicality(technicality: string | null): string {
   const technicalityMap: Record<string, string> = {
     highly_technical: "Expert-level terminology",
     technical: "Technical but accessible",
     accessible: "Easy to understand",
     simplified: "Simple, plain language",
   };
-  return technicalityMap[technicality] || "Standard complexity";
+  return (
+    (technicality && technicalityMap[technicality]) || "Standard complexity"
+  );
 }

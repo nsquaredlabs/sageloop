@@ -11,6 +11,18 @@
 
 import type { z } from "zod";
 import type { DimensionalAnalysisSchema } from "@/lib/validation/dimensional-analysis";
+import {
+  getSampleSizes,
+  getConfidences,
+  getTonePatterns,
+  getStructureElements,
+  getContentElements,
+  getErrorData,
+  getToneAttributes,
+  getContentAttributes,
+  getLengthRanges,
+  getLengthMetric,
+} from "./analysis-helpers";
 
 // Type for dimensional analysis (extracted from Zod schema)
 type DimensionalAnalysis = z.infer<typeof DimensionalAnalysisSchema>;
@@ -54,8 +66,8 @@ export function detectPatterns(
   const alwaysPatterns: PatternItem[] = [];
   const neverPatterns: PatternItem[] = [];
 
-  const highRatedCount = dimensions.length.sample_size.high;
-  const lowRatedCount = dimensions.length.sample_size.low;
+  const { high: highRatedCount, low: lowRatedCount } =
+    getSampleSizes(dimensions);
   const totalSamples = highRatedCount + lowRatedCount;
 
   if (totalSamples < 5) {
@@ -80,12 +92,13 @@ export function detectPatterns(
   const topAlways = alwaysPatterns.slice(0, 5);
   const topNever = neverPatterns.slice(0, 5);
 
+  const confidences = getConfidences(dimensions);
   const dimensionConfidences = [
-    dimensions.length.confidence,
-    dimensions.structure.confidence,
-    dimensions.content.confidence,
-    dimensions.tone.confidence,
-    dimensions.errors.confidence,
+    confidences.length,
+    confidences.structure,
+    confidences.content,
+    confidences.tone,
+    confidences.errors,
   ];
   const overallConfidence =
     dimensionConfidences.reduce((sum, c) => sum + c, 0) /
@@ -105,40 +118,48 @@ function analyzeLengthPatterns(
   alwaysPatterns: PatternItem[],
   neverPatterns: PatternItem[],
 ): void {
-  const { high_rated_range, low_rated_range, confidence, metric } = length;
-  const highMedian = high_rated_range.median;
-  const lowMedian = low_rated_range.median;
+  if (!length) return;
+
+  const dims = { length } as unknown as DimensionalAnalysis;
+  const { high: highRange, low: lowRange } = getLengthRanges(dims);
+  const metric = getLengthMetric(dims) || "words";
+  const confidence = length.confidence ?? 0;
+
+  const highMedian = highRange.median;
+  const lowMedian = lowRange.median;
+
+  if (lowMedian === 0) return; // Can't calculate ratio with zero
   const ratio = highMedian / lowMedian;
 
   if (ratio >= 1.5) {
     alwaysPatterns.push({
-      description: `Longer responses (${high_rated_range.min}-${high_rated_range.max} ${metric})`,
+      description: `Longer responses (${highRange.min}-${highRange.max} ${metric})`,
       dimension: "length",
       confidence,
       type: "always",
-      metric: `${high_rated_range.min}-${high_rated_range.max} ${metric}`,
+      metric: `${highRange.min}-${highRange.max} ${metric}`,
     });
     neverPatterns.push({
-      description: `Short responses under ${low_rated_range.max} ${metric}`,
+      description: `Short responses under ${lowRange.max} ${metric}`,
       dimension: "length",
       confidence,
       type: "never",
-      metric: `<${low_rated_range.max} ${metric}`,
+      metric: `<${lowRange.max} ${metric}`,
     });
   } else if (ratio <= 0.67) {
     alwaysPatterns.push({
-      description: `Concise responses (${high_rated_range.min}-${high_rated_range.max} ${metric})`,
+      description: `Concise responses (${highRange.min}-${highRange.max} ${metric})`,
       dimension: "length",
       confidence,
       type: "always",
-      metric: `${high_rated_range.min}-${high_rated_range.max} ${metric}`,
+      metric: `${highRange.min}-${highRange.max} ${metric}`,
     });
     neverPatterns.push({
-      description: `Overly long responses (${low_rated_range.min}+ ${metric})`,
+      description: `Overly long responses (${lowRange.min}+ ${metric})`,
       dimension: "length",
       confidence,
       type: "never",
-      metric: `>${low_rated_range.min} ${metric}`,
+      metric: `>${lowRange.min} ${metric}`,
     });
   }
 }
@@ -148,17 +169,19 @@ function analyzeStructurePatterns(
   alwaysPatterns: PatternItem[],
   neverPatterns: PatternItem[],
 ): void {
-  const {
-    common_elements,
-    high_rated_includes,
-    low_rated_includes,
-    confidence,
-  } = structure;
+  if (!structure) return;
 
-  for (const element of common_elements) {
-    const highPrevalence = element.prevalence_high_rated;
-    const lowPrevalence = element.prevalence_low_rated;
-    const elementName = formatElementType(element.type);
+  const dims = { structure } as unknown as DimensionalAnalysis;
+  const { elements, highIncludes, lowIncludes } = getStructureElements(dims);
+  const confidence = structure.confidence ?? 0;
+
+  for (const element of elements) {
+    if (!element) continue;
+    const highPrevalence = element.prevalence_high_rated ?? 0;
+    const lowPrevalence = element.prevalence_low_rated ?? 0;
+    const elementName = element.type
+      ? formatElementType(element.type)
+      : "Structure element";
 
     if (highPrevalence >= ALWAYS_THRESHOLD && lowPrevalence < 50) {
       alwaysPatterns.push({
@@ -179,8 +202,8 @@ function analyzeStructurePatterns(
     }
   }
 
-  for (const element of high_rated_includes) {
-    const formattedElement = formatStructureElement(element);
+  for (const element of highIncludes) {
+    const formattedElement = formatStructureElement(element || "");
     if (!alwaysPatterns.some((p) => p.description === formattedElement)) {
       alwaysPatterns.push({
         description: formattedElement,
@@ -191,8 +214,8 @@ function analyzeStructurePatterns(
     }
   }
 
-  for (const element of low_rated_includes) {
-    const formattedElement = formatStructureElement(element);
+  for (const element of lowIncludes) {
+    const formattedElement = formatStructureElement(element || "");
     if (!neverPatterns.some((p) => p.description === formattedElement)) {
       neverPatterns.push({
         description: formattedElement,
@@ -209,16 +232,17 @@ function analyzeContentPatterns(
   alwaysPatterns: PatternItem[],
   neverPatterns: PatternItem[],
 ): void {
-  const {
-    high_rated_elements,
-    low_rated_elements,
-    confidence,
-    specificity,
-    citations_present,
-    examples_present,
-  } = content;
+  if (!content) return;
 
-  if (specificity === "very_specific" || specificity === "specific") {
+  const dims = { content } as unknown as DimensionalAnalysis;
+  const { highElements, lowElements } = getContentElements(dims);
+  const attrs = getContentAttributes(dims);
+  const confidence = content.confidence ?? 0;
+
+  if (
+    attrs.specificity === "very_specific" ||
+    attrs.specificity === "specific"
+  ) {
     alwaysPatterns.push({
       description: "Specific, detailed content",
       dimension: "content",
@@ -227,7 +251,7 @@ function analyzeContentPatterns(
     });
   }
 
-  if (citations_present) {
+  if (attrs.citationsPresent) {
     alwaysPatterns.push({
       description: "Citations or references",
       dimension: "content",
@@ -236,7 +260,7 @@ function analyzeContentPatterns(
     });
   }
 
-  if (examples_present) {
+  if (attrs.examplesPresent) {
     alwaysPatterns.push({
       description: "Concrete examples",
       dimension: "content",
@@ -245,22 +269,26 @@ function analyzeContentPatterns(
     });
   }
 
-  for (const element of high_rated_elements.slice(0, 3)) {
-    alwaysPatterns.push({
-      description: formatContentElement(element),
-      dimension: "content",
-      confidence: confidence * 0.85,
-      type: "always",
-    });
+  for (const element of highElements.slice(0, 3)) {
+    if (element) {
+      alwaysPatterns.push({
+        description: formatContentElement(element),
+        dimension: "content",
+        confidence: confidence * 0.85,
+        type: "always",
+      });
+    }
   }
 
-  for (const element of low_rated_elements.slice(0, 3)) {
-    neverPatterns.push({
-      description: formatContentElement(element),
-      dimension: "content",
-      confidence: confidence * 0.85,
-      type: "never",
-    });
+  for (const element of lowElements.slice(0, 3)) {
+    if (element) {
+      neverPatterns.push({
+        description: formatContentElement(element),
+        dimension: "content",
+        confidence: confidence * 0.85,
+        type: "never",
+      });
+    }
   }
 }
 
@@ -269,40 +297,39 @@ function analyzeTonePatterns(
   alwaysPatterns: PatternItem[],
   neverPatterns: PatternItem[],
 ): void {
-  const {
-    high_rated_pattern,
-    low_rated_pattern,
-    confidence,
-    formality,
-    technicality,
-  } = tone;
+  if (!tone) return;
 
-  if (high_rated_pattern && high_rated_pattern.length > 10) {
+  const dims = { tone } as unknown as DimensionalAnalysis;
+  const patterns = getTonePatterns(dims);
+  const attrs = getToneAttributes(dims);
+  const confidence = tone.confidence ?? 0;
+
+  if (patterns.highPattern && patterns.highPattern.length > 10) {
     alwaysPatterns.push({
-      description: high_rated_pattern,
+      description: patterns.highPattern,
       dimension: "tone",
       confidence,
       type: "always",
     });
   }
 
-  if (low_rated_pattern && low_rated_pattern.length > 10) {
+  if (patterns.lowPattern && patterns.lowPattern.length > 10) {
     neverPatterns.push({
-      description: low_rated_pattern,
+      description: patterns.lowPattern,
       dimension: "tone",
       confidence,
       type: "never",
     });
   }
 
-  if (formality === "very_formal") {
+  if (attrs.formality === "very_formal") {
     alwaysPatterns.push({
       description: "Formal, professional tone",
       dimension: "tone",
       confidence: confidence * 0.8,
       type: "always",
     });
-  } else if (formality === "very_casual") {
+  } else if (attrs.formality === "very_casual") {
     alwaysPatterns.push({
       description: "Casual, conversational tone",
       dimension: "tone",
@@ -311,14 +338,14 @@ function analyzeTonePatterns(
     });
   }
 
-  if (technicality === "highly_technical") {
+  if (attrs.technicality === "highly_technical") {
     alwaysPatterns.push({
       description: "Technical, expert language",
       dimension: "tone",
       confidence: confidence * 0.8,
       type: "always",
     });
-  } else if (technicality === "simplified") {
+  } else if (attrs.technicality === "simplified") {
     alwaysPatterns.push({
       description: "Simple, accessible language",
       dimension: "tone",
@@ -332,51 +359,49 @@ function analyzeErrorPatterns(
   errors: DimensionalAnalysis["errors"],
   neverPatterns: PatternItem[],
 ): void {
-  const {
-    hallucinations,
-    refusals,
-    formatting_issues,
-    factual_errors,
-    confidence,
-  } = errors;
+  if (!errors) return;
 
-  if (hallucinations.count > 0) {
+  const dims = { errors } as unknown as DimensionalAnalysis;
+  const errorData = getErrorData(dims);
+  const confidence = errors.confidence ?? 0;
+
+  if (errorData.hallucinations.count > 0) {
     neverPatterns.push({
       description: `Hallucinations or made-up information`,
       dimension: "errors",
       confidence,
       type: "never",
-      metric: `${hallucinations.count} found`,
+      metric: `${errorData.hallucinations.count} found`,
     });
   }
 
-  if (refusals.count > 0) {
+  if (errorData.refusals.count > 0) {
     neverPatterns.push({
       description: "Unnecessary refusals",
       dimension: "errors",
       confidence,
       type: "never",
-      metric: `${refusals.count} found`,
+      metric: `${errorData.refusals.count} found`,
     });
   }
 
-  if (formatting_issues.count > 2) {
+  if (errorData.formattingIssues.count > 2) {
     neverPatterns.push({
       description: "Formatting problems (broken markdown, etc.)",
       dimension: "errors",
       confidence,
       type: "never",
-      metric: `${formatting_issues.count} found`,
+      metric: `${errorData.formattingIssues.count} found`,
     });
   }
 
-  if (factual_errors.count > 0) {
+  if (errorData.factualErrors.count > 0) {
     neverPatterns.push({
       description: "Factual errors or incorrect information",
       dimension: "errors",
       confidence,
       type: "never",
-      metric: `${factual_errors.count} found`,
+      metric: `${errorData.factualErrors.count} found`,
     });
   }
 }
