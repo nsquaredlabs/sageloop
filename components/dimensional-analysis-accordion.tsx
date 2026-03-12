@@ -6,7 +6,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, XCircle } from "lucide-react";
 import {
   Ruler,
@@ -19,14 +18,6 @@ import type { ExtractionCriteria } from "@/types/database";
 
 interface DimensionalAnalysisAccordionProps {
   dimensions: NonNullable<ExtractionCriteria["dimensions"]>;
-}
-
-function getConfidenceBadgeVariant(
-  confidence: number,
-): "default" | "secondary" | "outline" {
-  if (confidence > 0.8) return "default";
-  if (confidence > 0.6) return "secondary";
-  return "outline";
 }
 
 export function DimensionalAnalysisAccordion({
@@ -53,13 +44,6 @@ export function DimensionalAnalysisAccordion({
                 <Ruler className="h-4 w-4 text-primary" />
                 <span className="font-semibold">Length</span>
               </div>
-              <Badge
-                variant={getConfidenceBadgeVariant(
-                  dimensions.length.confidence ?? 0,
-                )}
-              >
-                {((dimensions.length.confidence ?? 0) * 100).toFixed(0)}%
-              </Badge>
             </div>
           </AccordionTrigger>
           <AccordionContent className="px-4 pb-4">
@@ -150,13 +134,6 @@ export function DimensionalAnalysisAccordion({
                 <MessageSquare className="h-4 w-4 text-primary" />
                 <span className="font-semibold">Tone</span>
               </div>
-              <Badge
-                variant={getConfidenceBadgeVariant(
-                  dimensions.tone.confidence ?? 0,
-                )}
-              >
-                {((dimensions.tone.confidence ?? 0) * 100).toFixed(0)}%
-              </Badge>
             </div>
           </AccordionTrigger>
           <AccordionContent className="px-4 pb-4">
@@ -230,13 +207,6 @@ export function DimensionalAnalysisAccordion({
                 <Layout className="h-4 w-4 text-primary" />
                 <span className="font-semibold">Structure</span>
               </div>
-              <Badge
-                variant={getConfidenceBadgeVariant(
-                  dimensions.structure.confidence ?? 0,
-                )}
-              >
-                {((dimensions.structure.confidence ?? 0) * 100).toFixed(0)}%
-              </Badge>
             </div>
           </AccordionTrigger>
           <AccordionContent className="px-4 pb-4">
@@ -305,13 +275,6 @@ export function DimensionalAnalysisAccordion({
                 <FileText className="h-4 w-4 text-primary" />
                 <span className="font-semibold">Content</span>
               </div>
-              <Badge
-                variant={getConfidenceBadgeVariant(
-                  dimensions.content.confidence ?? 0,
-                )}
-              >
-                {((dimensions.content.confidence ?? 0) * 100).toFixed(0)}%
-              </Badge>
             </div>
           </AccordionTrigger>
           <AccordionContent className="px-4 pb-4">
@@ -401,13 +364,6 @@ export function DimensionalAnalysisAccordion({
                 <AlertTriangle className="h-4 w-4 text-primary" />
                 <span className="font-semibold">Errors</span>
               </div>
-              <Badge
-                variant={getConfidenceBadgeVariant(
-                  dimensions.errors.confidence ?? 0,
-                )}
-              >
-                {((dimensions.errors.confidence ?? 0) * 100).toFixed(0)}%
-              </Badge>
             </div>
           </AccordionTrigger>
           <AccordionContent className="px-4 pb-4">

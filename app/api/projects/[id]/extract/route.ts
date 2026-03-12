@@ -319,7 +319,6 @@ Return your analysis as a JSON object with this EXACT structure:
       "metric": "words",
       "high_rated_range": { "min": 150, "max": 300, "median": 200 },
       "low_rated_range": { "min": 50, "max": 100, "median": 75 },
-      "confidence": 0.8,
       "sample_size": { "high": ${successes.length}, "low": ${failures.length} },
       "insight": "5-star outputs: 200-300 words, 3-4 paragraphs. 1-star: too brief (<100 words)"
     },
@@ -327,7 +326,6 @@ Return your analysis as a JSON object with this EXACT structure:
       "formality": "neutral",
       "technicality": "accessible",
       "sentiment": "positive",
-      "confidence": 0.7,
       "high_rated_pattern": "Professional yet accessible, positive without being overly enthusiastic",
       "low_rated_pattern": "Too casual or overly technical, lacks warmth"
     },
@@ -338,7 +336,6 @@ Return your analysis as a JSON object with this EXACT structure:
       ],
       "high_rated_includes": ["bullet_points", "clear_sections", "examples"],
       "low_rated_includes": ["wall_of_text", "no_formatting"],
-      "confidence": 0.85,
       "insight": "High-rated outputs use bullets and headers; low-rated are unformatted walls of text"
     },
     "content": {
@@ -348,7 +345,6 @@ Return your analysis as a JSON object with this EXACT structure:
       "disclaimers_present": false,
       "high_rated_elements": ["concrete_examples", "specific_data", "actionable_advice"],
       "low_rated_elements": ["vague_claims", "no_examples", "generic_advice"],
-      "confidence": 0.9,
       "insight": "High-rated outputs provide specific examples and data; low-rated are vague"
     },
     "errors": {
@@ -356,7 +352,6 @@ Return your analysis as a JSON object with this EXACT structure:
       "refusals": { "count": 0, "reasons": [] },
       "formatting_issues": { "count": 5, "types": ["broken_markdown", "missing_closing_tags"] },
       "factual_errors": { "count": 2, "examples": ["Incorrect date", "Wrong calculation"] },
-      "confidence": 0.7,
       "insight": "Main errors: formatting issues (5) and hallucinations (3)"
     }
   },
@@ -555,21 +550,13 @@ IMPORTANT:
     ).length;
     const successRate = totalOutputs > 0 ? successfulOutputs / totalOutputs : 0;
 
-    const criteriaBreakdown = {
-      length: analysisResult.dimensions.length.confidence,
-      tone: analysisResult.dimensions.tone.confidence,
-      structure: analysisResult.dimensions.structure.confidence,
-      content: analysisResult.dimensions.content.confidence,
-      errors: analysisResult.dimensions.errors.confidence,
-    };
-
     const metric = db
       .insert(schema.metrics)
       .values({
         project_id: projectId,
         extraction_id: extraction.id,
         success_rate: successRate,
-        criteria_breakdown: JSON.stringify(criteriaBreakdown),
+        criteria_breakdown: null,
       })
       .returning()
       .get();

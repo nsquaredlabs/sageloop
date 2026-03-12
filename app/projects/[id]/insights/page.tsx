@@ -30,16 +30,11 @@ import {
 import { SmartAlertBanner } from "@/components/smart-alert-banner";
 import { DimensionalAnalysisAccordion } from "@/components/dimensional-analysis-accordion";
 import { CollapsibleSystemPrompt } from "@/components/collapsible-system-prompt";
-import {
-  interpretSuccessRate,
-  interpretConfidence,
-  getDetailedConfidenceAssessment,
-} from "@/lib/metrics";
+import { interpretSuccessRate, interpretConfidence } from "@/lib/metrics";
 import { parseId } from "@/lib/utils";
 import { ApplyFixButton } from "@/components/apply-fix-button";
 import { PatternSummaryCard } from "@/components/pattern-summary-card";
 import { PatternFingerprintCard } from "@/components/pattern-fingerprint-card";
-import { ConfidenceExplainerCard } from "@/components/confidence-explainer-card";
 import { detectPatterns } from "@/lib/analysis/pattern-detection";
 import { generateFingerprint } from "@/lib/analysis/fingerprint-generator";
 import type { ExtractionCriteria, ModelConfig } from "@/types/database";
@@ -389,18 +384,6 @@ export default async function InsightsPage({
               </CardContent>
             </Card>
           )}
-
-        {/* Confidence Explainer */}
-        {criteria.dimensions && (
-          <div id="confidence" className="mb-6">
-            <ConfidenceExplainerCard
-              assessment={getDetailedConfidenceAssessment(
-                criteria.dimensions,
-                extraction.rated_output_count || 0,
-              )}
-            />
-          </div>
-        )}
 
         {/* Pattern Fingerprint */}
         {criteria.dimensions && (

@@ -49,7 +49,6 @@ export const LengthDimensionSchema = z.object({
     })
     .nullable()
     .optional(),
-  confidence: z.number().min(0).max(1).nullable().optional(),
   sample_size: z
     .object({
       high: z.number().nullable().optional(),
@@ -71,7 +70,6 @@ export const ToneDimensionSchema = z.object({
     .nullable()
     .optional(),
   sentiment: z.enum(["positive", "neutral", "negative"]).nullable().optional(),
-  confidence: z.number().min(0).max(1).nullable().optional(),
   high_rated_pattern: z.string().nullable().optional(),
   low_rated_pattern: z.string().nullable().optional(),
 });
@@ -81,7 +79,6 @@ export const StructureDimensionSchema = z.object({
   common_elements: z.array(StructureElementSchema).nullable().optional(),
   high_rated_includes: z.array(z.string()).nullable().optional(),
   low_rated_includes: z.array(z.string()).nullable().optional(),
-  confidence: z.number().min(0).max(1).nullable().optional(),
   insight: z.string().nullable().optional(),
 });
 
@@ -96,7 +93,6 @@ export const ContentDimensionSchema = z.object({
   disclaimers_present: z.boolean().nullable().optional(),
   high_rated_elements: z.array(z.string()).nullable().optional(),
   low_rated_elements: z.array(z.string()).nullable().optional(),
-  confidence: z.number().min(0).max(1).nullable().optional(),
   insight: z.string().nullable().optional(),
 });
 
@@ -130,7 +126,6 @@ export const ErrorDimensionSchema = z.object({
     })
     .nullable()
     .optional(),
-  confidence: z.number().min(0).max(1).nullable().optional(),
   insight: z.string().nullable().optional(),
 });
 

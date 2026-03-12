@@ -38,15 +38,15 @@ export function getLengthRanges(dimensions: DimensionalAnalysis) {
 }
 
 /**
- * Safe extraction of confidence scores with defaults
+ * Returns placeholder confidence scores (per-dimension AI confidence removed as unreliable)
  */
-export function getConfidences(dimensions: DimensionalAnalysis) {
+export function getConfidences(_dimensions: DimensionalAnalysis) {
   return {
-    length: dimensions.length?.confidence ?? 0,
-    tone: dimensions.tone?.confidence ?? 0,
-    structure: dimensions.structure?.confidence ?? 0,
-    content: dimensions.content?.confidence ?? 0,
-    errors: dimensions.errors?.confidence ?? 0,
+    length: 1,
+    tone: 1,
+    structure: 1,
+    content: 1,
+    errors: 1,
   };
 }
 

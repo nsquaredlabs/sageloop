@@ -123,7 +123,7 @@ function analyzeLengthPatterns(
   const dims = { length } as unknown as DimensionalAnalysis;
   const { high: highRange, low: lowRange } = getLengthRanges(dims);
   const metric = getLengthMetric(dims) || "words";
-  const confidence = length.confidence ?? 0;
+  const confidence = 1;
 
   const highMedian = highRange.median;
   const lowMedian = lowRange.median;
@@ -173,7 +173,7 @@ function analyzeStructurePatterns(
 
   const dims = { structure } as unknown as DimensionalAnalysis;
   const { elements, highIncludes, lowIncludes } = getStructureElements(dims);
-  const confidence = structure.confidence ?? 0;
+  const confidence = 1;
 
   for (const element of elements) {
     if (!element) continue;
@@ -237,7 +237,7 @@ function analyzeContentPatterns(
   const dims = { content } as unknown as DimensionalAnalysis;
   const { highElements, lowElements } = getContentElements(dims);
   const attrs = getContentAttributes(dims);
-  const confidence = content.confidence ?? 0;
+  const confidence = 1;
 
   if (
     attrs.specificity === "very_specific" ||
@@ -302,7 +302,7 @@ function analyzeTonePatterns(
   const dims = { tone } as unknown as DimensionalAnalysis;
   const patterns = getTonePatterns(dims);
   const attrs = getToneAttributes(dims);
-  const confidence = tone.confidence ?? 0;
+  const confidence = 1;
 
   if (patterns.highPattern && patterns.highPattern.length > 10) {
     alwaysPatterns.push({
@@ -363,7 +363,7 @@ function analyzeErrorPatterns(
 
   const dims = { errors } as unknown as DimensionalAnalysis;
   const errorData = getErrorData(dims);
-  const confidence = errors.confidence ?? 0;
+  const confidence = 1;
 
   if (errorData.hallucinations.count > 0) {
     neverPatterns.push({

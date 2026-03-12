@@ -195,7 +195,6 @@ export interface LengthDimension {
   metric: "words" | "characters" | "sentences" | "paragraphs";
   high_rated_range: { min: number; max: number; median: number };
   low_rated_range: { min: number; max: number; median: number };
-  confidence: number; // 0-1
   sample_size: { high: number; low: number };
   insight: string; // "5-star outputs: 200-300 words, 3-4 paragraphs"
 }
@@ -204,7 +203,6 @@ export interface ToneDimension {
   formality: "very_formal" | "formal" | "neutral" | "casual" | "very_casual";
   technicality: "highly_technical" | "technical" | "accessible" | "simplified";
   sentiment: "positive" | "neutral" | "negative";
-  confidence: number;
   high_rated_pattern: string; // "Professional, accessible tone"
   low_rated_pattern: string; // "Too casual or overly technical"
 }
@@ -213,7 +211,6 @@ export interface StructureDimension {
   common_elements: StructureElement[];
   high_rated_includes: string[]; // ["bullet_points", "examples", "headers"]
   low_rated_includes: string[]; // ["wall_of_text", "no_formatting"]
-  confidence: number;
   insight: string;
 }
 
@@ -224,7 +221,6 @@ export interface ContentDimension {
   disclaimers_present: boolean;
   high_rated_elements: string[]; // ["concrete_examples", "data_citations", "caveats"]
   low_rated_elements: string[]; // ["vague_claims", "no_sources", "overconfidence"]
-  confidence: number;
   insight: string;
 }
 
@@ -233,7 +229,6 @@ export interface ErrorDimension {
   refusals: { count: number; reasons: string[] };
   formatting_issues: { count: number; types: string[] };
   factual_errors: { count: number; examples: string[] };
-  confidence: number;
   insight: string;
 }
 
