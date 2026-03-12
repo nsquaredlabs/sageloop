@@ -6,7 +6,7 @@
  *
  * Priority Order:
  * 1. Failure Alert (failure rate > 20%)
- * 2. Sample Size Warning (confidence < 60%)
+ * 2. Sample Size Warning (confidence < 80%)
  * 3. Success Celebration (success > 80% AND confidence > 85%)
  */
 
@@ -32,7 +32,7 @@ function getAlertPriority(
   successRate: number,
 ): AlertPriority {
   if (failureRate > 0.2) return "failure";
-  if (confidence < 0.6) return "sample_size";
+  if (confidence < 0.8) return "sample_size";
   if (successRate > 0.8 && confidence > 0.85) return "success";
   return null;
 }
@@ -88,21 +88,14 @@ export function SmartAlertBanner({
       <Alert className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950 dark:border-yellow-800 mb-6">
         <Info className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
         <AlertTitle className="text-yellow-900 dark:text-yellow-100">
-          Moderate Confidence ({confidencePercent}%): More samples recommended
+          {confidencePercent < 40 ? "Early patterns" : "Emerging patterns"} (
+          {confidencePercent}%): More samples recommended
         </AlertTitle>
         <AlertDescription className="text-yellow-800 dark:text-yellow-200">
-          <p className="mb-2">
-            Add <strong>{needsMore} more rated outputs</strong> to reach
-            production-ready confidence (85%). Current patterns may shift with
-            more data.
+          <p>
+            Add <strong>{needsMore} more rated outputs</strong> for stronger
+            patterns. Current patterns may shift with more data.
           </p>
-          <Button
-            variant="link"
-            className="p-0 h-auto text-yellow-700 dark:text-yellow-300 hover:text-yellow-900 dark:hover:text-yellow-100"
-            onClick={() => scrollToSection("confidence")}
-          >
-            View Confidence Breakdown
-          </Button>
         </AlertDescription>
       </Alert>
     );

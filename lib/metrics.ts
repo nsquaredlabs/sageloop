@@ -78,19 +78,21 @@ export function interpretConfidence(
       variant: "default",
       message: `Based on ${ratedCount} ratings, these patterns are reliable.`,
     };
-  } else if (confidenceScore >= 0.5) {
+  } else if (confidenceScore >= 0.4) {
     return {
       label: "Moderate Confidence",
       variant: "secondary",
       message: `Based on ${ratedCount} ratings.`,
-      actionable: "Add 5-10 more ratings to increase pattern confidence.",
+      actionable:
+        "Patterns are emerging. Add more ratings to strengthen confidence.",
     };
   } else {
     return {
       label: "Low Confidence",
       variant: "outline",
       message: `Only ${ratedCount} ratings analyzed.`,
-      actionable: "Rate at least 10 outputs for reliable pattern extraction.",
+      actionable:
+        "Rate more outputs for reliable patterns. At least 8-10 rated outputs recommended.",
     };
   }
 }
