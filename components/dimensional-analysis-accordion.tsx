@@ -55,17 +55,17 @@ export function DimensionalAnalysisAccordion({
               </div>
               <Badge
                 variant={getConfidenceBadgeVariant(
-                  dimensions.length.confidence,
+                  dimensions.length.confidence ?? 0,
                 )}
               >
-                {(dimensions.length.confidence * 100).toFixed(0)}%
+                {((dimensions.length.confidence ?? 0) * 100).toFixed(0)}%
               </Badge>
             </div>
           </AccordionTrigger>
           <AccordionContent className="px-4 pb-4">
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                {dimensions.length.insight}
+                {dimensions.length.insight ?? "No insight available"}
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* High-rated pattern */}
@@ -75,15 +75,23 @@ export function DimensionalAnalysisAccordion({
                     <span>High-Rated (4-5 stars)</span>
                   </div>
                   <div className="rounded-md bg-green-50 dark:bg-green-950 p-3 text-sm border border-green-200 dark:border-green-800">
-                    <p className="font-medium">
-                      {dimensions.length.high_rated_range.min}-
-                      {dimensions.length.high_rated_range.max}{" "}
-                      {dimensions.length.metric}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Median: {dimensions.length.high_rated_range.median}{" "}
-                      {dimensions.length.metric}
-                    </p>
+                    {dimensions.length.high_rated_range ? (
+                      <>
+                        <p className="font-medium">
+                          {dimensions.length.high_rated_range.min}-
+                          {dimensions.length.high_rated_range.max}{" "}
+                          {dimensions.length.metric}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Median: {dimensions.length.high_rated_range.median}{" "}
+                          {dimensions.length.metric}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        No data available
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -94,15 +102,23 @@ export function DimensionalAnalysisAccordion({
                     <span>Low-Rated (1-2 stars)</span>
                   </div>
                   <div className="rounded-md bg-red-50 dark:bg-red-950 p-3 text-sm border border-red-200 dark:border-red-800">
-                    <p className="font-medium">
-                      {dimensions.length.low_rated_range.min}-
-                      {dimensions.length.low_rated_range.max}{" "}
-                      {dimensions.length.metric}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Median: {dimensions.length.low_rated_range.median}{" "}
-                      {dimensions.length.metric}
-                    </p>
+                    {dimensions.length.low_rated_range ? (
+                      <>
+                        <p className="font-medium">
+                          {dimensions.length.low_rated_range.min}-
+                          {dimensions.length.low_rated_range.max}{" "}
+                          {dimensions.length.metric}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Median: {dimensions.length.low_rated_range.median}{" "}
+                          {dimensions.length.metric}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        No data available
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -112,13 +128,13 @@ export function DimensionalAnalysisAccordion({
                 <div className="flex items-center gap-2">
                   <span className="font-medium">High-rated samples:</span>
                   <span className="text-foreground">
-                    {dimensions.length.sample_size.high}
+                    {dimensions.length.sample_size?.high ?? 0}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-medium">Low-rated samples:</span>
                   <span className="text-foreground">
-                    {dimensions.length.sample_size.low}
+                    {dimensions.length.sample_size?.low ?? 0}
                   </span>
                 </div>
               </div>
@@ -135,18 +151,22 @@ export function DimensionalAnalysisAccordion({
                 <span className="font-semibold">Tone</span>
               </div>
               <Badge
-                variant={getConfidenceBadgeVariant(dimensions.tone.confidence)}
+                variant={getConfidenceBadgeVariant(
+                  dimensions.tone.confidence ?? 0,
+                )}
               >
-                {(dimensions.tone.confidence * 100).toFixed(0)}%
+                {((dimensions.tone.confidence ?? 0) * 100).toFixed(0)}%
               </Badge>
             </div>
           </AccordionTrigger>
           <AccordionContent className="px-4 pb-4">
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Formality: {dimensions.tone.formality.replace("_", " ")},
-                Technicality: {dimensions.tone.technicality.replace("_", " ")},
-                Sentiment: {dimensions.tone.sentiment}
+                Formality:{" "}
+                {dimensions.tone.formality?.replace("_", " ") ?? "N/A"},
+                Technicality:{" "}
+                {dimensions.tone.technicality?.replace("_", " ") ?? "N/A"},
+                Sentiment: {dimensions.tone.sentiment ?? "N/A"}
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* High-rated pattern */}
@@ -157,7 +177,8 @@ export function DimensionalAnalysisAccordion({
                   </div>
                   <div className="rounded-md bg-green-50 dark:bg-green-950 p-3 text-sm border border-green-200 dark:border-green-800">
                     <p className="text-sm">
-                      {dimensions.tone.high_rated_pattern}
+                      {dimensions.tone.high_rated_pattern ??
+                        "No data available"}
                     </p>
                   </div>
                 </div>
@@ -170,7 +191,7 @@ export function DimensionalAnalysisAccordion({
                   </div>
                   <div className="rounded-md bg-red-50 dark:bg-red-950 p-3 text-sm border border-red-200 dark:border-red-800">
                     <p className="text-sm">
-                      {dimensions.tone.low_rated_pattern}
+                      {dimensions.tone.low_rated_pattern ?? "No data available"}
                     </p>
                   </div>
                 </div>
@@ -181,19 +202,19 @@ export function DimensionalAnalysisAccordion({
                 <div className="flex items-center gap-2">
                   <span className="font-medium">Formality:</span>
                   <span className="text-foreground">
-                    {dimensions.tone.formality.replace("_", " ")}
+                    {dimensions.tone.formality?.replace("_", " ") ?? "N/A"}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-medium">Technicality:</span>
                   <span className="text-foreground">
-                    {dimensions.tone.technicality.replace("_", " ")}
+                    {dimensions.tone.technicality?.replace("_", " ") ?? "N/A"}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-medium">Sentiment:</span>
                   <span className="text-foreground">
-                    {dimensions.tone.sentiment}
+                    {dimensions.tone.sentiment ?? "N/A"}
                   </span>
                 </div>
               </div>
@@ -211,17 +232,17 @@ export function DimensionalAnalysisAccordion({
               </div>
               <Badge
                 variant={getConfidenceBadgeVariant(
-                  dimensions.structure.confidence,
+                  dimensions.structure.confidence ?? 0,
                 )}
               >
-                {(dimensions.structure.confidence * 100).toFixed(0)}%
+                {((dimensions.structure.confidence ?? 0) * 100).toFixed(0)}%
               </Badge>
             </div>
           </AccordionTrigger>
           <AccordionContent className="px-4 pb-4">
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                {dimensions.structure.insight}
+                {dimensions.structure.insight ?? "No insight available"}
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* High-rated pattern */}
@@ -231,9 +252,10 @@ export function DimensionalAnalysisAccordion({
                     <span>High-Rated (4-5 stars)</span>
                   </div>
                   <div className="rounded-md bg-green-50 dark:bg-green-950 p-3 text-sm border border-green-200 dark:border-green-800">
-                    {dimensions.structure.high_rated_includes.length > 0 ? (
+                    {(dimensions.structure.high_rated_includes ?? []).length >
+                    0 ? (
                       <ul className="text-sm space-y-1">
-                        {dimensions.structure.high_rated_includes.map(
+                        {(dimensions.structure.high_rated_includes ?? []).map(
                           (elem: string, i: number) => (
                             <li key={i}>&#8226; {elem.replace("_", " ")}</li>
                           ),
@@ -254,9 +276,10 @@ export function DimensionalAnalysisAccordion({
                     <span>Low-Rated (1-2 stars)</span>
                   </div>
                   <div className="rounded-md bg-red-50 dark:bg-red-950 p-3 text-sm border border-red-200 dark:border-red-800">
-                    {dimensions.structure.low_rated_includes.length > 0 ? (
+                    {(dimensions.structure.low_rated_includes ?? []).length >
+                    0 ? (
                       <ul className="text-sm space-y-1">
-                        {dimensions.structure.low_rated_includes.map(
+                        {(dimensions.structure.low_rated_includes ?? []).map(
                           (elem: string, i: number) => (
                             <li key={i}>&#8226; {elem.replace("_", " ")}</li>
                           ),
@@ -284,17 +307,17 @@ export function DimensionalAnalysisAccordion({
               </div>
               <Badge
                 variant={getConfidenceBadgeVariant(
-                  dimensions.content.confidence,
+                  dimensions.content.confidence ?? 0,
                 )}
               >
-                {(dimensions.content.confidence * 100).toFixed(0)}%
+                {((dimensions.content.confidence ?? 0) * 100).toFixed(0)}%
               </Badge>
             </div>
           </AccordionTrigger>
           <AccordionContent className="px-4 pb-4">
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                {dimensions.content.insight}
+                {dimensions.content.insight ?? "No insight available"}
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* High-rated pattern */}
@@ -304,9 +327,10 @@ export function DimensionalAnalysisAccordion({
                     <span>High-Rated (4-5 stars)</span>
                   </div>
                   <div className="rounded-md bg-green-50 dark:bg-green-950 p-3 text-sm border border-green-200 dark:border-green-800">
-                    {dimensions.content.high_rated_elements.length > 0 ? (
+                    {(dimensions.content.high_rated_elements ?? []).length >
+                    0 ? (
                       <ul className="text-sm space-y-1">
-                        {dimensions.content.high_rated_elements.map(
+                        {(dimensions.content.high_rated_elements ?? []).map(
                           (elem: string, i: number) => (
                             <li key={i}>&#8226; {elem.replace("_", " ")}</li>
                           ),
@@ -338,9 +362,10 @@ export function DimensionalAnalysisAccordion({
                     <span>Low-Rated (1-2 stars)</span>
                   </div>
                   <div className="rounded-md bg-red-50 dark:bg-red-950 p-3 text-sm border border-red-200 dark:border-red-800">
-                    {dimensions.content.low_rated_elements.length > 0 ? (
+                    {(dimensions.content.low_rated_elements ?? []).length >
+                    0 ? (
                       <ul className="text-sm space-y-1">
-                        {dimensions.content.low_rated_elements.map(
+                        {(dimensions.content.low_rated_elements ?? []).map(
                           (elem: string, i: number) => (
                             <li key={i}>&#8226; {elem.replace("_", " ")}</li>
                           ),
@@ -360,7 +385,7 @@ export function DimensionalAnalysisAccordion({
                 <div className="flex items-center gap-2">
                   <span className="font-medium">Specificity:</span>
                   <span className="text-foreground">
-                    {dimensions.content.specificity}
+                    {dimensions.content.specificity ?? "N/A"}
                   </span>
                 </div>
               </div>
@@ -378,17 +403,17 @@ export function DimensionalAnalysisAccordion({
               </div>
               <Badge
                 variant={getConfidenceBadgeVariant(
-                  dimensions.errors.confidence,
+                  dimensions.errors.confidence ?? 0,
                 )}
               >
-                {(dimensions.errors.confidence * 100).toFixed(0)}%
+                {((dimensions.errors.confidence ?? 0) * 100).toFixed(0)}%
               </Badge>
             </div>
           </AccordionTrigger>
           <AccordionContent className="px-4 pb-4">
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                {dimensions.errors.insight}
+                {dimensions.errors.insight ?? "No insight available"}
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* High-rated pattern */}
@@ -415,13 +440,13 @@ export function DimensionalAnalysisAccordion({
                   </div>
                   <div className="rounded-md bg-red-50 dark:bg-red-950 p-3 text-sm border border-red-200 dark:border-red-800">
                     <div className="space-y-2 text-sm">
-                      {dimensions.errors.hallucinations.count > 0 && (
+                      {(dimensions.errors.hallucinations?.count ?? 0) > 0 && (
                         <div>
                           <p className="font-medium">
                             Hallucinations:{" "}
-                            {dimensions.errors.hallucinations.count}
+                            {dimensions.errors.hallucinations?.count}
                           </p>
-                          {dimensions.errors.hallucinations.examples
+                          {(dimensions.errors.hallucinations?.examples ?? [])
                             .slice(0, 2)
                             .map((ex: string, i: number) => (
                               <p
@@ -433,33 +458,36 @@ export function DimensionalAnalysisAccordion({
                             ))}
                         </div>
                       )}
-                      {dimensions.errors.refusals.count > 0 && (
+                      {(dimensions.errors.refusals?.count ?? 0) > 0 && (
                         <div>
                           <p className="font-medium">
-                            Refusals: {dimensions.errors.refusals.count}
+                            Refusals: {dimensions.errors.refusals?.count}
                           </p>
                         </div>
                       )}
-                      {dimensions.errors.formatting_issues.count > 0 && (
+                      {(dimensions.errors.formatting_issues?.count ?? 0) >
+                        0 && (
                         <div>
                           <p className="font-medium">
                             Formatting:{" "}
-                            {dimensions.errors.formatting_issues.count}
+                            {dimensions.errors.formatting_issues?.count}
                           </p>
                         </div>
                       )}
-                      {dimensions.errors.factual_errors.count > 0 && (
+                      {(dimensions.errors.factual_errors?.count ?? 0) > 0 && (
                         <div>
                           <p className="font-medium">
                             Factual errors:{" "}
-                            {dimensions.errors.factual_errors.count}
+                            {dimensions.errors.factual_errors?.count}
                           </p>
                         </div>
                       )}
-                      {dimensions.errors.hallucinations.count === 0 &&
-                        dimensions.errors.refusals.count === 0 &&
-                        dimensions.errors.formatting_issues.count === 0 &&
-                        dimensions.errors.factual_errors.count === 0 && (
+                      {(dimensions.errors.hallucinations?.count ?? 0) === 0 &&
+                        (dimensions.errors.refusals?.count ?? 0) === 0 &&
+                        (dimensions.errors.formatting_issues?.count ?? 0) ===
+                          0 &&
+                        (dimensions.errors.factual_errors?.count ?? 0) ===
+                          0 && (
                           <p className="text-muted-foreground">
                             No errors detected
                           </p>
