@@ -1,0 +1,25 @@
+Hey team, let's meet tomorrow at 2pm in the blue room to go over the quarterly budget. Should take about an hour.
+Reminder: Annual company retreat is scheduled for October 5th, 2025. We'll be at the Riverside Resort from 9am until 5pm. Bring comfortable shoes for team building activities!
+Dr. Smith's office called - your dentist appointment is confirmed for next Tuesday, March 12th at 10:30am. Address is 456 Oak Street.
+Can we schedule a quick standup this Friday morning? Also, don't forget about the product launch party on the 20th at 7pm - it's at The Grand Ballroom downtown.
+Board meeting agenda for November 3, 2025 at 1pm: Q3 review, budget approval, and strategic planning for 2026. Expected to run until 4pm. Virtual meeting link will be sent separately.
+Your flight departs LAX on December 15th at 6:45am. Also, you have a dinner meeting with the investors that evening at 8pm at Il Vesuvio restaurant.
+Workshop series every Monday in January 2025 starting at 3pm - Advanced Excel Training in Training Room B. Each session is 90 minutes.
+Emergency all-hands meeting today at 4:30pm. Location TBD - check Slack for updates.
+Parent-teacher conference scheduled for April 18, 2025 at 3:15pm. Meet in classroom 204. Should be done by 4pm. Bring your child's portfolio.
+Wedding invitation: Sarah & Mike are getting married on Saturday, June 14, 2025. Ceremony starts at 4pm at St. Mary's Cathedral, reception to follow at 6pm at The Waterfront Estate. Semi-formal attire requested.
+Your car service is booked for Feb 28, 2025 at 8am. Please arrive 15 minutes early. Estimated service time is 2-3 hours. We'll call when ready.
+Team lunch next Thursday at noon - Bella Italia on Main Street. RSVP by Monday so I can make a reservation. Plan for about 90 minutes.
+Webinar: "AI in Product Management" on January 22, 2025 at 2pm EST. Registration link in bio. Q&A session after the 45-minute presentation.
+Doctor's follow-up on March 3rd at 9:45am. Bring your test results from last visit. Office is on the 5th floor, suite 502.
+Conference call scheduled for this Wednesday at 3pm. Dial-in: 555-0123, code 9876. Agenda: roadmap review and timeline discussion. Should be 30 minutes.
+Birthday party for Alex on July 12, 2025 at 5pm. His place - 789 Elm Avenue. Bring a dish to share! Kids welcome, ends around 9pm.
+Quarterly business review with the executive team on Feb 14, 2025 from 10am to 2pm. Location: Executive Boardroom, Building C. Lunch will be provided. Prepare slides.
+Guitar lessons start next month - every Tuesday and Thursday at 6:30pm. First session is Sept 3rd at Music Academy downtown. Each lesson is 1 hour.
+Job interview scheduled for Monday, May 5th at 11am. Meet with Sarah Chen, VP of Engineering. Address is 321 Tech Plaza, 3rd floor. Bring portfolio and resume.
+Vet appointment for Buddy on Aug 20, 2025 at 4pm. Annual checkup and vaccinations. Bring vaccination records. Clinic address: 654 Pet Care Lane.
+Networking event: Startup Mixer on Oct 18, 2025 from 6pm to 9pm at The Innovation Hub. Free drinks and appetizers. Bring business cards!
+Yoga class every Saturday morning starting Nov 1st at 8am. Serenity Studio on Oak Street. First class is free! Bring a mat and water. 75-minute sessions.
+Client presentation next Friday at 2:30pm. Conference Room A. Need to demo the new features and discuss pricing. Expect 60-90 minutes. Prepare live demo.
+Hair appointment on April 7, 2025 at 1pm with Jessica. Cut and color - budget 2.5 hours. Salon location: Style Studio, 222 Fashion Blvd.
+Training session: "Advanced SQL Techniques" on Jan 15, 2025 from 9am to 4pm. Virtual instructor-led course. Login credentials will be sent day before. Lunch break 12-1pm.
